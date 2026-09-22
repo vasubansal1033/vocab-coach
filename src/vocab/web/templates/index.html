@@ -1,0 +1,7 @@
+{% extends "base.html" %}
+{% block content %}
+<h1>vocab-coach</h1>
+<p>Signed in as {{ user.display_name or user.email or user.id }}. <a href="/auth/logout">Log out</a></p>
+<p>Replace vague words with precise ones.</p>
+<p><a href="/conversations">Open conversations</a></p>
+{% endblock %}

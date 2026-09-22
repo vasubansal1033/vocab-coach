@@ -1,0 +1,14 @@
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+.ruff_cache/
+.env
+data/*.db
+data/*.db-*
+infra/authentik/.env
+infra/authentik/data/
+infra/authentik/certs/
+infra/authentik/custom-templates/
+frontend/node_modules/
+frontend/dist/

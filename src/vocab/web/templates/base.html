@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}vocab-coach{% endblock %}</title>
+  <script src="{{ url_for('static', path='vendor/htmx.min.js') }}" defer></script>
+  <script src="{{ url_for('static', path='vendor/htmx-ext-sse.js') }}" defer></script>
+</head>
+<body>
+  <header>
+    <a href="/">vocab-coach</a>
+    · <a href="/#/conversations">Conversations</a>
+    · <a href="/#/review">Review</a>
+    · <a href="/#/drills">Drills</a>
+    · <a href="/#/dashboard">Dashboard</a>
+  </header>
+  <main>
+    {% block content %}{% endblock %}
+  </main>
+  <footer>
+    <a href="/account">Account</a>
+    · <a href="/about/privacy">Privacy</a>
+    · <a href="/about/attribution">Attribution</a>
+  </footer>
+</body>
+</html>
