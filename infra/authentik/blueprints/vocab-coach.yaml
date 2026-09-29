@@ -1,0 +1,161 @@
+version: 1
+metadata:
+  name: vocab-coach
+  labels:
+    blueprints.goauthentik.io/description: OIDC provider, application and sign-up flow for vocab-coach
+entries:
+  - identifiers:
+      slug: default-enrollment-flow
+    model: authentik_flows.flow
+    id: flow
+    attrs:
+      name: Default enrollment Flow
+      title: Welcome to authentik!
+      designation: enrollment
+      authentication: require_unauthenticated
+  - id: prompt-field-username
+    model: authentik_stages_prompt.prompt
+    identifiers:
+      name: default-enrollment-field-username
+    attrs:
+      field_key: username
+      label: Username
+      type: username
+      required: true
+      placeholder: Username
+      placeholder_expression: false
+      order: 0
+  - identifiers:
+      name: default-enrollment-field-password
+    id: prompt-field-password
+    model: authentik_stages_prompt.prompt
+    attrs:
+      field_key: password
+      label: Password
+      type: password
+      required: true
+      placeholder: Password
+      placeholder_expression: false
+      order: 0
+  - identifiers:
+      name: default-enrollment-field-password-repeat
+    id: prompt-field-password-repeat
+    model: authentik_stages_prompt.prompt
+    attrs:
+      field_key: password_repeat
+      label: Password (repeat)
+      type: password
+      required: true
+      placeholder: Password (repeat)
+      placeholder_expression: false
+      order: 1
+  - identifiers:
+      name: default-enrollment-field-name
+    id: prompt-field-name
+    model: authentik_stages_prompt.prompt
+    attrs:
+      field_key: name
+      label: Name
+      type: text
+      required: true
+      placeholder: Name
+      placeholder_expression: false
+      order: 0
+  - identifiers:
+      name: default-enrollment-field-email
+    id: prompt-field-email
+    model: authentik_stages_prompt.prompt
+    attrs:
+      field_key: email
+      label: Email
+      type: email
+      required: true
+      placeholder: Email
+      placeholder_expression: false
+      order: 1
+  - identifiers:
+      name: default-enrollment-prompt-second
+    id: default-enrollment-prompt-second
+    model: authentik_stages_prompt.promptstage
+    attrs:
+      fields:
+        - !KeyOf prompt-field-name
+        - !KeyOf prompt-field-email
+  - identifiers:
+      name: default-enrollment-prompt-first
+    id: default-enrollment-prompt-first
+    model: authentik_stages_prompt.promptstage
+    attrs:
+      fields:
+        - !KeyOf prompt-field-username
+        - !KeyOf prompt-field-password
+        - !KeyOf prompt-field-password-repeat
+  - identifiers:
+      name: default-enrollment-user-login
+    id: default-enrollment-user-login
+    model: authentik_stages_user_login.userloginstage
+  - identifiers:
+      name: default-enrollment-user-write
+    id: default-enrollment-user-write
+    model: authentik_stages_user_write.userwritestage
+    attrs:
+      user_creation_mode: always_create
+  - identifiers:
+      target: !KeyOf flow
+      stage: !KeyOf default-enrollment-prompt-first
+      order: 10
+    model: authentik_flows.flowstagebinding
+  - identifiers:
+      target: !KeyOf flow
+      stage: !KeyOf default-enrollment-prompt-second
+      order: 11
+    model: authentik_flows.flowstagebinding
+  - identifiers:
+      target: !KeyOf flow
+      stage: !KeyOf default-enrollment-user-write
+      order: 20
+    model: authentik_flows.flowstagebinding
+  - identifiers:
+      target: !KeyOf flow
+      stage: !KeyOf default-enrollment-user-login
+      order: 100
+    model: authentik_flows.flowstagebinding
+  - model: authentik_providers_oauth2.oauth2provider
+    id: vocab-coach-provider
+    identifiers:
+      name: vocab-coach
+    attrs:
+      authorization_flow: !Find [authentik_flows.flow, [slug, default-provider-authorization-implicit-consent]]
+      # Ends the authentik session too. default-provider-invalidation-flow only
+      # shows "logged out of the app" and leaves the authentik session alive.
+      invalidation_flow: !Find [authentik_flows.flow, [slug, default-invalidation-flow]]
+      client_type: confidential
+      # Empty by default in this authentik version, which rejects the authorize request.
+      grant_types:
+        - authorization_code
+      client_id: !Env OIDC_CLIENT_ID
+      client_secret: !Env OIDC_CLIENT_SECRET
+      redirect_uris:
+        - matching_mode: strict
+          url: http://localhost:8000/auth/callback
+      signing_key: !Find [authentik_crypto.certificatekeypair, [name, authentik Self-signed Certificate]]
+      property_mappings:
+        - !Find [authentik_providers_oauth2.scopemapping, [managed, goauthentik.io/providers/oauth2/scope-openid]]
+        - !Find [authentik_providers_oauth2.scopemapping, [managed, goauthentik.io/providers/oauth2/scope-email]]
+        - !Find [authentik_providers_oauth2.scopemapping, [managed, goauthentik.io/providers/oauth2/scope-profile]]
+  - model: authentik_core.application
+    identifiers:
+      slug: vocab-coach
+    attrs:
+      name: vocab-coach
+      provider: !KeyOf vocab-coach-provider
+  # Shows a "Sign up" link on the login page by pointing the identification stage at the enrollment flow.
+  - model: authentik_stages_identification.identificationstage
+    identifiers:
+      name: default-authentication-identification
+    attrs:
+      # Repeat the default's user_fields: the serializer rejects the entry without them.
+      user_fields:
+        - email
+        - username
+      enrollment_flow: !KeyOf flow
