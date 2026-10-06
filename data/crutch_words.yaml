@@ -1,0 +1,36 @@
+# Vague lemmas the analyzer always marks as candidates.
+# Verbs are marked only through this list, never by frequency.
+- lemma: good
+  pos: ADJ
+- lemma: bad
+  pos: ADJ
+- lemma: big
+  pos: ADJ
+- lemma: really
+  pos: ADV
+- lemma: very
+  pos: ADV
+- lemma: thing
+  pos: NOUN
+- lemma: stuff
+  pos: NOUN
+- lemma: get
+  pos: VERB
+- lemma: make
+  pos: VERB
+- lemma: fix
+  pos: VERB
+- lemma: show
+  pos: VERB
+- lemma: say
+  pos: VERB
+- lemma: use
+  pos: VERB
+- lemma: lot
+  pos: NOUN
+- lemma: hard
+  pos: ADJ
+- lemma: easy
+  pos: ADJ
+- lemma: problem
+  pos: NOUN
