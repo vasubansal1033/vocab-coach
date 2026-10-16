@@ -1,0 +1,18 @@
+head_lemma: bad
+groups:
+  - id: bad.quality
+    pos: ADJ
+    sense_gloss: of poor quality or undesirable
+    options:
+      - word: flawed
+        distinction: has a specific defect you can point to
+        example: The proposal is flawed because it ignores rollback.
+        register: neutral
+      - word: poor
+        distinction: below an expected standard overall
+        example: The documentation is poor and leaves out setup steps.
+        register: neutral
+      - word: deficient
+        distinction: missing something required
+        example: The test suite is deficient in failure cases.
+        register: formal

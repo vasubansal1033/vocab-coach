@@ -1,0 +1,18 @@
+head_lemma: good
+groups:
+  - id: good.quality
+    pos: ADJ
+    sense_gloss: of high or acceptable quality
+    options:
+      - word: solid
+        distinction: dependable and without obvious gaps
+        example: The design is solid enough to ship this quarter.
+        register: neutral
+      - word: sound
+        distinction: well reasoned or structurally correct
+        example: That is a sound approach for the migration.
+        register: formal
+      - word: reliable
+        distinction: performs consistently over time
+        example: The new job runner has been reliable for three weeks.
+        register: neutral

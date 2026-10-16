@@ -1,0 +1,18 @@
+head_lemma: easy
+groups:
+  - id: easy.difficulty
+    pos: ADJ
+    sense_gloss: not difficult; requiring little effort
+    options:
+      - word: simple
+        distinction: few moving parts; easy to understand
+        example: A simple retry fixed most of the flakes.
+        register: neutral
+      - word: straightforward
+        distinction: clear path with no hidden complications
+        example: The deploy steps are straightforward.
+        register: neutral
+      - word: effortless
+        distinction: feels easy in practice once set up
+        example: After the script, rollbacks became effortless.
+        register: neutral

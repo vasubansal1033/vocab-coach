@@ -1,0 +1,18 @@
+head_lemma: make
+groups:
+  - id: make.create
+    pos: VERB
+    sense_gloss: bring something into existence
+    options:
+      - word: create
+        distinction: bring into being as a new entity
+        example: Create a branch before changing the schema.
+        register: neutral
+      - word: produce
+        distinction: generate as output of a process
+        example: The pipeline produces a daily report.
+        register: neutral
+      - word: assemble
+        distinction: put parts together into a whole
+        example: We assembled the release notes from the PRs.
+        register: neutral

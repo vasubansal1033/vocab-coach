@@ -1,0 +1,53 @@
+{% extends "base.html" %}
+{% block title %}Lexicon admin · vocab-coach{% endblock %}
+{% block content %}
+<h1>Lexicon review</h1>
+
+<section>
+  <h2>Draft groups</h2>
+  {% if not drafts %}
+  <p>No drafts.</p>
+  {% endif %}
+  {% for group in drafts %}
+  <article>
+    <h3>{{ group.id }} <small>({{ group.head_lemma }} / {{ group.pos }})</small></h3>
+    <form method="post" action="/admin/lexicon/groups/{{ group.id }}/edit">
+      <label>Sense gloss
+        <textarea name="sense_gloss" rows="2" cols="60">{{ group.sense_gloss }}</textarea>
+      </label>
+      <label>Options (word | distinction | example | register)
+        <textarea name="options_blob" rows="6" cols="80">{% for opt in group.options %}{{ opt.word }} | {{ opt.distinction }} | {{ opt.example }} | {{ opt.register }}
+{% endfor %}</textarea>
+      </label>
+      <button type="submit">Save edit</button>
+    </form>
+    <form method="post" action="/admin/lexicon/groups/{{ group.id }}/approve" style="display:inline">
+      <button type="submit">Approve</button>
+    </form>
+    <form method="post" action="/admin/lexicon/groups/{{ group.id }}/reject" style="display:inline">
+      <button type="submit">Reject</button>
+    </form>
+  </article>
+  {% endfor %}
+</section>
+
+<section>
+  <h2>Review queue</h2>
+  {% if not queue %}
+  <p>Queue empty.</p>
+  {% endif %}
+  {% for item in queue %}
+  <article>
+    <p><strong>{{ item.proposed_word }}</strong> for <em>{{ item.head_lemma }}</em></p>
+    <p>{{ item.distinction }}</p>
+    <p>{{ item.example }}</p>
+    <form method="post" action="/admin/lexicon/queue/{{ item.id }}/approve" style="display:inline">
+      <button type="submit">Approve</button>
+    </form>
+    <form method="post" action="/admin/lexicon/queue/{{ item.id }}/reject" style="display:inline">
+      <button type="submit">Reject</button>
+    </form>
+  </article>
+  {% endfor %}
+</section>
+{% endblock %}

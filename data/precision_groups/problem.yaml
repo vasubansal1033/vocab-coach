@@ -1,0 +1,18 @@
+head_lemma: problem
+groups:
+  - id: problem.issue
+    pos: NOUN
+    sense_gloss: something wrong that needs attention
+    options:
+      - word: issue
+        distinction: a concrete matter to track or fix
+        example: The main issue is the missing index.
+        register: neutral
+      - word: obstacle
+        distinction: something blocking progress toward a goal
+        example: Legal review is the only obstacle left.
+        register: neutral
+      - word: setback
+        distinction: a delay or reverse after progress
+        example: The outage was a setback for the launch.
+        register: neutral
