@@ -1,0 +1,46 @@
+# Editor gold set for `vocab eval editor`.
+#
+# Schema for each entry:
+#   id: unique string
+#   text: user message to edit
+#   partner_previous: optional partner message for context
+#   must_flag: spans the editor must suggest changing (substring match)
+#   may_flag: spans that are optional to flag
+#   must_keep: words/spans that must not be flagged
+#   acceptable_options:
+#     <original span>: [list of acceptable replacement words]
+#   forbidden_options: [inflated synonyms never acceptable]
+#   expect_empty: true  # optional; sentence should get zero suggestions
+#
+# Fill this file to ~30 sentences (about eight with expect_empty: true).
+# Three starter examples below.
+
+- id: migration-hard
+  text: Yeah the migration was really hard and we had a big problem with the old data, but we fixed it in the end.
+  partner_previous: How did the database migration go last week?
+  must_flag: [really hard, fixed]
+  may_flag: [big problem]
+  must_keep: [migration, data]
+  acceptable_options:
+    fixed: [resolved, patched, worked around, mitigated]
+    really hard: [difficult, demanding, tough]
+  forbidden_options: [utilised, leveraged, facilitated]
+
+- id: clean-status
+  text: The deploy finished and all health checks passed.
+  must_flag: []
+  may_flag: []
+  must_keep: [deploy, health]
+  acceptable_options: {}
+  forbidden_options: [utilised, leveraged, facilitated]
+  expect_empty: true
+
+- id: vague-thing
+  text: We need to fix that thing before Friday.
+  must_flag: [thing, fix]
+  may_flag: []
+  must_keep: [Friday]
+  acceptable_options:
+    thing: [item, matter, element]
+    fix: [resolve, patch, work around, mitigate]
+  forbidden_options: [utilised, leveraged, facilitated]
