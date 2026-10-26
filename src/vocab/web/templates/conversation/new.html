@@ -1,0 +1,12 @@
+{% extends "base.html" %}
+{% block title %}New conversation · vocab-coach{% endblock %}
+{% block content %}
+<h1>New conversation</h1>
+<form method="post" action="/conversations/new">
+  <label>Topic or scenario
+    <input type="text" name="topic" required size="60"
+           placeholder="e.g. How last week's database migration went">
+  </label>
+  <button type="submit">Start</button>
+</form>
+{% endblock %}

@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+{% block title %}{{ conversation.title }} · vocab-coach{% endblock %}
+{% block content %}
+<p><a href="/conversations">All conversations</a></p>
+<h1>{{ conversation.title }}</h1>
+
+<div id="thread">
+  {% for message in conversation.messages %}
+    {% if message.role == 'user' %}
+      <div class="msg user" id="msg-{{ message.id }}">
+        <strong>You</strong>
+        <p>{{ message.content }}</p>
+      </div>
+    {% else %}
+      <div class="msg partner" id="msg-{{ message.id }}">
+        <strong>Partner</strong>
+        <p>{{ message.content }}</p>
+      </div>
+    {% endif %}
+  {% endfor %}
+</div>
+
+<form id="composer"
+      hx-post="/conversations/{{ conversation.id }}/messages"
+      hx-target="#thread"
+      hx-swap="beforeend"
+      hx-on::after-request="if(event.detail.successful) this.reset()">
+  <label>Your message
+    <textarea name="content" rows="3" cols="60" required></textarea>
+  </label>
+  <button type="submit">Send</button>
+</form>
+{% endblock %}

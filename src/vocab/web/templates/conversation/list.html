@@ -1,0 +1,16 @@
+{% extends "base.html" %}
+{% block title %}Conversations · vocab-coach{% endblock %}
+{% block content %}
+<h1>Conversations</h1>
+<p><a href="/conversations/new">New conversation</a></p>
+{% if not conversations %}
+<p>No conversations yet.</p>
+{% else %}
+<ul>
+  {% for c in conversations %}
+  <li><a href="/conversations/{{ c.id }}">{{ c.title }}</a>
+    <small>{{ c.created_at }}</small></li>
+  {% endfor %}
+</ul>
+{% endif %}
+{% endblock %}
