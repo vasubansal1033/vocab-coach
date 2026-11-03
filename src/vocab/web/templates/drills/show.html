@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+{% block title %}Drill · vocab-coach{% endblock %}
+{% block content %}
+<h1>Rewrite drill</h1>
+<p>Rewrite the sentence with a more precise word where it helps.</p>
+<blockquote>{{ drill.vague_sentence }}</blockquote>
+
+{% if not attempt %}
+<form method="post" action="/drills/{{ drill.id }}/attempt">
+  <label>Your rewrite
+    <textarea name="answer" rows="3" cols="60" required></textarea>
+  </label>
+  <button type="submit">Grade</button>
+</form>
+{% else %}
+<section>
+  <p><strong>Your answer:</strong> {{ attempt.answer }}</p>
+  <p><strong>Score:</strong> {{ attempt.score }} / 5</p>
+  <ul>
+    <li>Precision: {{ attempt.grade.precision }}</li>
+    <li>Meaning: {{ attempt.grade.meaning }}</li>
+    <li>Naturalness: {{ attempt.grade.naturalness }}</li>
+  </ul>
+  <p>{{ attempt.grade.feedback }}</p>
+  {% if attempt.grade.better_version %}
+  <p><strong>Better version:</strong> {{ attempt.grade.better_version }}</p>
+  {% endif %}
+</section>
+<form method="post" action="/drills/next">
+  <button type="submit">Next</button>
+</form>
+{% endif %}
+{% endblock %}
