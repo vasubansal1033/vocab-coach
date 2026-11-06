@@ -1,0 +1,36 @@
+{% extends "base.html" %}
+{% block title %}{{ detail.lemma }} · Dashboard · vocab-coach{% endblock %}
+{% block content %}
+<p><a href="/dashboard">← Dashboard</a></p>
+<h1>{{ detail.lemma }}</h1>
+<p>Weekly crutch rate for this lemma (last twelve weeks).</p>
+
+<section>
+  <h2>Weekly rate</h2>
+  <ul>
+    {% for w in detail.weekly %}
+      <li>{{ w.label }}: {% if w.rate is not none %}{{ '%.1f'|format(w.rate) }}{% else %}—{% endif %}</li>
+    {% endfor %}
+  </ul>
+</section>
+
+<section>
+  <h2>Learned options</h2>
+  {% if detail.options %}
+  <table>
+    <thead><tr><th>Word</th><th>Uses</th><th>Correct</th></tr></thead>
+    <tbody>
+    {% for opt in detail.options %}
+      <tr>
+        <td>{{ opt.word }}</td>
+        <td>{{ opt.uses }}</td>
+        <td>{{ opt.correct_uses }}</td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <p>No accepted options from this lemma's groups in the window.</p>
+  {% endif %}
+</section>
+{% endblock %}
