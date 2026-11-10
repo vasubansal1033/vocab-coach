@@ -12,6 +12,7 @@ from vocab.conversation.models import Conversation, Message, MessageLemmaCount
 from vocab.drills.models import Drill, DrillAttempt
 from vocab.editor.models import EditorRun, Suggestion, SuggestionOption
 from vocab.events import Event
+from vocab.lexicon.models import ReviewQueueItem
 from vocab.llm.models import LlmCall
 from vocab.practice.models import SrsCard
 
@@ -115,7 +116,14 @@ def delete_user(session: Session, user_id: str) -> None:
             delete(SuggestionOption).where(SuggestionOption.suggestion_id.in_(suggestion_ids))
         )
     session.execute(delete(Suggestion).where(Suggestion.user_id == user_id))
-    session.execute(delete(EditorRun).where(EditorRun.user_id == user_id))
+    run_ids = list(
+        session.scalars(select(EditorRun.id).where(EditorRun.user_id == user_id))
+    )
+    if run_ids:
+        session.execute(
+            delete(ReviewQueueItem).where(ReviewQueueItem.editor_run_id.in_(run_ids))
+        )
+        session.execute(delete(EditorRun).where(EditorRun.id.in_(run_ids)))
     if message_ids:
         session.execute(
             delete(MessageLemmaCount).where(MessageLemmaCount.message_id.in_(message_ids))

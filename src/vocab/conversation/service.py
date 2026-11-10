@@ -8,6 +8,7 @@ from sqlalchemy.orm import Session, selectinload
 from vocab.conversation.models import Conversation, Message, MessageLemmaCount
 from vocab.editor.models import EditorRun, Suggestion, SuggestionOption
 from vocab.events import SuggestionAcceptedPayload, record_event
+from vocab.lexicon.models import ReviewQueueItem
 from vocab.nlp.analyzer import analyze
 from vocab.nlp.persist import lemma_count_rows, word_count_value
 
@@ -58,6 +59,9 @@ def delete_conversation(session: Session, conversation: Conversation) -> None:
         session.scalars(select(Message.id).where(Message.conversation_id == conversation.id))
     )
     if message_ids:
+        run_ids = list(
+            session.scalars(select(EditorRun.id).where(EditorRun.message_id.in_(message_ids)))
+        )
         suggestion_ids = list(
             session.scalars(select(Suggestion.id).where(Suggestion.message_id.in_(message_ids)))
         )
@@ -68,7 +72,12 @@ def delete_conversation(session: Session, conversation: Conversation) -> None:
                 )
             )
         session.execute(delete(Suggestion).where(Suggestion.message_id.in_(message_ids)))
-        session.execute(delete(EditorRun).where(EditorRun.message_id.in_(message_ids)))
+        if run_ids:
+            # review_queue.editor_run_id FK blocks editor_runs deletes.
+            session.execute(
+                delete(ReviewQueueItem).where(ReviewQueueItem.editor_run_id.in_(run_ids))
+            )
+            session.execute(delete(EditorRun).where(EditorRun.id.in_(run_ids)))
         session.execute(
             delete(MessageLemmaCount).where(MessageLemmaCount.message_id.in_(message_ids))
         )
@@ -152,20 +161,6 @@ def previous_partner_content(session: Session, conversation_id: str) -> str | No
         .order_by(Message.created_at.desc())
     ).first()
     return msg.content if msg else None
-
-
-def suggestions_for_message(session: Session, message_id: str) -> list[Suggestion]:
-    """Suggestions for the latest editor run on this message (not every historical run)."""
-    from vocab.conversation.feedback import suggestions_for_run
-
-    run = session.scalars(
-        select(EditorRun)
-        .where(EditorRun.message_id == message_id)
-        .order_by(EditorRun.created_at.desc())
-    ).first()
-    if run is None:
-        return []
-    return suggestions_for_run(session, run.id)
 
 
 def accept_suggestion(
