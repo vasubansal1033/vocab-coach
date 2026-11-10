@@ -9,6 +9,7 @@ import DashboardPage from './pages/DashboardPage'
 import LemmaPage from './pages/LemmaPage'
 import ReviewPage from './pages/ReviewPage'
 import DrillsPage from './pages/DrillsPage'
+import AccountPage from './pages/AccountPage'
 
 const links = [
   ['/', 'Home'],
@@ -16,6 +17,7 @@ const links = [
   ['/review', 'Review'],
   ['/drills', 'Drills'],
   ['/dashboard', 'Dashboard'],
+  ['/account', 'Account'],
 ] as const
 
 export default function App() {
@@ -42,9 +44,6 @@ export default function App() {
             </NavLink>
           ))}
         </nav>
-        <a className="muted" href="/account">
-          Account
-        </a>
         <a className="muted" href="/auth/logout">
           Log out
         </a>
@@ -61,6 +60,7 @@ export default function App() {
         <Route path="/dashboard/lemma/:lemma" element={<LemmaPage />} />
         <Route path="/review" element={<ReviewPage />} />
         <Route path="/drills" element={<DrillsPage />} />
+        <Route path="/account" element={<AccountPage />} />
       </Routes>
 
       <p className="footer-note">

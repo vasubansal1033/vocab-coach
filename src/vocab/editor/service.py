@@ -77,6 +77,8 @@ async def analyze_message(
     message_id: str,
     message: str,
     partner_previous: str | None = None,
+    conversation_title: str | None = None,
+    feedback_expectations: str | None = None,
     settings: Settings | None = None,
     record_shown: bool = True,
 ) -> list[Suggestion]:
@@ -93,6 +95,8 @@ async def analyze_message(
     variables = {
         "message": message,
         "partner_previous": partner_previous or "",
+        "conversation_title": conversation_title or "",
+        "feedback_expectations": (feedback_expectations or "").strip(),
         "candidates": [
             {
                 "text": span.text,

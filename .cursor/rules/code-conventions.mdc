@@ -1,0 +1,39 @@
+---
+description: Production coding standards for vocab-coach (Google-style + project SOLID)
+alwaysApply: true
+---
+
+# vocab-coach code conventions
+
+## Languages
+
+- **Python**: Google Python Style Guide spirit. Type hints everywhere. Ruff is law (`uv run ruff check .`). Line length 100 (project override of Google's 80).
+- **TypeScript/React**: Prefer clarity over cleverness. Named exports for shared modules; default export OK for pages. No unused vars. Run `npm run build` (tsc) and `npm run lint` when touching `frontend/`.
+
+## Architecture (SOLID / DRY)
+
+- **S**: One module owns one concern (`llm/` only imports litellm; routes stay thin).
+- **O**: New editor behaviour → new prompt version (`editor.vN.md`), never edit a shipped prompt.
+- **D**: Call roles via `llm.complete` / `llm.stream` / graphs; never hard-code model names.
+- Shared behaviour lives in a service helper once (example: `conversation.feedback.ensure_message_feedback`). Do not copy route logic between `/api` and HTML routers.
+- Prefer small pure helpers over deep inheritance.
+
+## Data and auth
+
+- Every user-data table has indexed `user_id`; every query filters by it.
+- Routes: `current_user` + `authorize()`. Answer 404 not 403 for cross-user IDs.
+- Schema change = Alembic migration with `render_as_batch=True`.
+- Metrics via `record_event()` only; never mutate counters in place.
+- Idempotent GETs: do not re-run LLMs or re-insert rows on refresh.
+
+## Tests
+
+- Unit tests use `FakeLLM`. Real models only under `@pytest.mark.llm` + `RUN_LLM_TESTS=1`.
+- New behaviour needs tests. Run `uv run pytest` and `uv run ruff check .` before claiming done.
+
+## Do not
+
+- Skip auth with a flag.
+- Raw SQLite SQL; use SQLAlchemy + generic `JSON`.
+- Commit secrets, amend history, or force-push unless the user explicitly asks.
+- Broad refactors unrelated to the task. No drive-by renames.

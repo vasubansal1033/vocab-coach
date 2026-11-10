@@ -21,7 +21,7 @@ Library versions in this document were checked on 10 Nov 2026 by installing them
 | Server | uvicorn | 0.54.0 | Standard ASGI server for FastAPI |
 | Templates | Jinja2 | 3.1.6 | Fallback pages and admin; attribution |
 | SPA UI | React + Vite | React 19 / Vite 8 | Hash-routed SPA in `frontend/`; talks to `/api` with the same session cookie |
-| Interactivity | htmx, htmx-ext-sse | 2.0.11, 2.2.4 | Kept for the Jinja conversation routes used in tests |
+| Interactivity | React SPA (Vite) + JSON `/api` | React 19 | Product UI. Legacy HTML paths redirect to `/#/...`. About and lexicon admin stay Jinja |
 | Charts | Chart.js | 4.6.1 | Dashboard charts in the SPA via react-chartjs-2; also vendored for Jinja |
 | Streaming | sse-starlette | 3.7.0 | Server-sent events for partner replies |
 | Database | SQLite through SQLAlchemy | SQLAlchemy 2.1.8 | Single file for the personal phase; SQLAlchemy keeps a later Postgres move to a configuration change plus a data copy |
@@ -39,7 +39,7 @@ Library versions in this document were checked on 10 Nov 2026 by installing them
 
 #### Why the SPA still sits behind FastAPI
 
-The OIDC login and session cookie stay on the FastAPI process. The React SPA is built with Vite into `frontend/dist`, served from `/`, and calls JSON routes under `/api` with that same cookie. No tokens live in localStorage. Hash routing avoids clashes with the older Jinja routes that tests and admin pages still use.
+The OIDC login and session cookie stay on the FastAPI process. The React SPA is built with Vite into `frontend/dist`, served from `/`, and calls JSON routes under `/api` with that same cookie. No tokens live in localStorage. Hash routing is the product UI; old HTML page paths redirect into `/#/...`. About and lexicon admin stay server-rendered.
 
 #### Why SQLite now and what keeps Postgres possible
 
@@ -87,11 +87,11 @@ The user is in a conversation. The partner's last message was "How did the datab
 
 **Step 3: look up precision groups.** For each candidate lemma, the app loads approved groups from `precision_groups` with their options. For `fix` it finds group `fix.repair` with options `resolve`, `patch`, `work around` and `mitigate`, each with its distinction and an example.
 
-**Step 4: run the editor.** The `llm` module calls the `editor` role with prompt `editor.v1`, passing the message, the partner's previous message for context, the candidate spans and the candidate groups. The response is validated against the `EditorOutput` schema (see "Editor contract"). The call is recorded in `llm_calls` and the validated output in `editor_runs`.
+**Step 4: run the editor.** The `llm` module calls the `editor` role with the active editor prompt (currently `editor.v3`), passing the message, the conversation title, optional feedback expectations, the partner's previous message, the candidate spans and the candidate groups. Feedback expectations are set when the user starts the conversation and tell the editor what specialized register or terms matter for this situation. The response is validated against the `EditorOutput` schema (see "Editor contract"). The call is recorded in `llm_calls` and the validated output in `editor_runs`.
 
 **Step 5: anchor the suggestions.** The model returns the exact text of each span it wants to change (`"really hard"`, `"fixed it in the end"`). The app finds each string in the message and stores the character offsets itself. A suggestion whose text cannot be found in the message is dropped and logged, because a model cannot be trusted to count characters. The editor returned three suggestions, but the app keeps the first two because of the per-message limit.
 
-**Step 6: show the feedback.** htmx swaps the feedback panel into the page under the user's message. Each suggestion shows the original words, up to three options with their meanings, and the clarifying question if there is one ("Was it hard because it took long, or because it was complicated?"). The app records a `suggestion_shown` event for each suggestion.
+**Step 6: show the feedback.** The SPA loads `/api/.../feedback` and renders a separate wording-feedback panel under the user's message (idempotent: one editor run per message). Each suggestion shows the original words, up to three options with their meanings, and the clarifying question if there is one ("Was it hard because it took long, or because it was complicated?"). The app records a `suggestion_shown` event for each suggestion on first analysis only.
 
 **Step 7: the user accepts an option.** The user clicks `resolve` under "fixed it in the end". The app records `suggestion_accepted` with `option_id` for `fix.repair/resolve` and creates an FSRS card for that option if the user does not have one yet.
 
@@ -114,7 +114,7 @@ All IDs are UUIDv4 strings generated in Python. Every table holding a user's dat
 
 | Table | Columns | Notes |
 |---|---|---|
-| `conversations` | `id`, `user_id`, `title`, `created_at` | |
+| `conversations` | `id`, `user_id`, `title`, `feedback_expectations` (nullable), `created_at` | `title` is the conversation name/scenario. Optional `feedback_expectations` steers the editor toward domain vocabulary for that thread |
 | `messages` | `id`, `conversation_id`, `user_id`, `role` (`user` or `partner`), `content`, `word_count`, `created_at` | `word_count` is the denominator for crutch rate |
 | `message_lemma_counts` | `message_id`, `user_id`, `lemma`, `surface`, `count` | Written by the analyzer for user messages only. Feeds crutch rate and overuse lift |
 
@@ -242,13 +242,16 @@ class EditorSuggestion(BaseModel):
 
 
 class EditorOutput(BaseModel):
+    overview: str = Field(
+        description="One or two sentences on how the whole message reads"
+    )
     suggestions: list[EditorSuggestion] = Field(max_length=3)
     keep: list[str] = Field(
         description="Words that looked like candidates but are already the right word"
     )
 ```
 
-The schema allows three suggestions so the app can drop one that fails anchoring and still show two.
+The schema allows three suggestions so the app can drop one that fails anchoring and still show two. The UI colour-marks each spot in the message and keeps other suggestions open after you accept one.
 
 #### Rules the editor prompt must state
 
@@ -266,7 +269,7 @@ The usage judge runs only when the analyzer finds a learned option's lemma in a 
 
 ## Partner contract
 
-The partner holds a natural conversation. Its system prompt includes a topic or scenario chosen by the user, and up to three due words. The prompt tells the partner to steer towards situations where those words would fit, never to use the due words itself, never to correct the user's English, and to keep replies short so the user writes more than the partner does. Not using the due words matters for the metrics: a word the partner just used does not count as unprompted when the user repeats it.
+The partner holds a natural conversation. Its system prompt includes a topic or scenario chosen by the user (the conversation name), and up to three due words. The prompt tells the partner to steer towards situations where those words would fit, never to use the due words itself, never to correct the user's English, and to keep replies short so the user writes more than the partner does. Not using the due words matters for the metrics: a word the partner just used does not count as unprompted when the user repeats it. The user may also store optional feedback expectations on the conversation; those go to the editor, not the partner, so wording feedback can prefer specialized terms for that situation.
 
 ## Precision groups
 

@@ -1,4 +1,4 @@
-"""Conversation UI: post message, feedback, accept/dismiss, editor failure."""
+"""Conversation API: post message, feedback, accept/dismiss, editor failure."""
 
 from __future__ import annotations
 
@@ -37,7 +37,7 @@ def _app(session: Session, user: User, **settings_kw: object) -> TestClient:
         llm_partner_model="fake-partner",
         llm_editor_model="fake-editor",
         llm_partner_prompt_version=1,
-        llm_editor_prompt_version=1,
+        llm_editor_prompt_version=3,
         **settings_kw,  # type: ignore[arg-type]
     )
     app = create_app(settings)
@@ -82,6 +82,7 @@ def test_feedback_accept_and_dismiss_events(
         content="We need to fix that thing.",
     )
     payload = {
+        "overview": "Vague verb.",
         "suggestions": [
             {
                 "original": "fix",
@@ -106,16 +107,20 @@ def test_feedback_accept_and_dismiss_events(
         )
     )
 
-    feedback = client.get(f"/conversations/{conversation.id}/messages/{message.id}/feedback")
+    feedback = client.get(
+        f"/api/conversations/{conversation.id}/messages/{message.id}/feedback",
+        headers={"accept": "application/json"},
+    )
     assert feedback.status_code == 200
-    assert b"resolve" in feedback.content
+    body = feedback.json()
+    assert body["failed"] is False
+    assert any(s["original_text"] == "fix" for s in body["suggestions"])
 
     shown = session.scalars(
         select(Event).where(Event.user_id == user.id, Event.type == "suggestion_shown")
     ).all()
     assert len(shown) >= 1
 
-    # Pull suggestion option id from DB
     from vocab.editor.models import Suggestion, SuggestionOption
 
     suggestion = session.scalars(
@@ -126,16 +131,16 @@ def test_feedback_accept_and_dismiss_events(
     ).one()
 
     accepted = client.post(
-        f"/conversations/{conversation.id}/suggestions/{suggestion.id}/accept",
-        data={"option_id": option.id},
+        f"/api/conversations/{conversation.id}/suggestions/{suggestion.id}/accept",
+        headers={"accept": "application/json"},
+        json={"option_id": option.id},
     )
     assert accepted.status_code == 200
-    assert b"Accepted" in accepted.content
+    assert accepted.json()["accepted_word"] == "resolve"
     assert session.scalars(
         select(Event).where(Event.type == "suggestion_accepted", Event.user_id == user.id)
     ).first()
 
-    # Second suggestion path: dismiss
     message2 = post_user_message(
         session,
         conversation=conversation,
@@ -143,6 +148,7 @@ def test_feedback_accept_and_dismiss_events(
         content="It was really hard.",
     )
     payload2 = {
+        "overview": "Vague intensifier.",
         "suggestions": [
             {
                 "original": "really hard",
@@ -161,14 +167,19 @@ def test_feedback_accept_and_dismiss_events(
         "keep": [],
     }
     use_fake(FakeLLM(fixtures={"editor": json.dumps(payload2)}))
-    client.get(f"/conversations/{conversation.id}/messages/{message2.id}/feedback")
+    client.get(
+        f"/api/conversations/{conversation.id}/messages/{message2.id}/feedback",
+        headers={"accept": "application/json"},
+    )
     suggestion2 = session.scalars(
         select(Suggestion).where(Suggestion.message_id == message2.id)
     ).one()
     dismissed = client.post(
-        f"/conversations/{conversation.id}/suggestions/{suggestion2.id}/dismiss"
+        f"/api/conversations/{conversation.id}/suggestions/{suggestion2.id}/dismiss",
+        headers={"accept": "application/json"},
     )
     assert dismissed.status_code == 200
+    assert dismissed.json()["dismissed"] is True
     assert session.scalars(
         select(Event).where(Event.type == "suggestion_dismissed", Event.user_id == user.id)
     ).first()
@@ -185,9 +196,12 @@ def test_editor_failure_shows_no_feedback(session: Session, make_user: Callable[
         content="Hello there friend.",
     )
     use_fake(FakeLLM(fixtures={"editor": ["not-valid-json", "still-not-json"]}))
-    response = client.get(f"/conversations/{conversation.id}/messages/{message.id}/feedback")
+    response = client.get(
+        f"/api/conversations/{conversation.id}/messages/{message.id}/feedback",
+        headers={"accept": "application/json"},
+    )
     assert response.status_code == 200
-    assert b"No feedback for this message" in response.content
+    assert response.json()["failed"] is True
 
 
 def test_partner_sse_saves_message(session: Session, make_user: Callable[..., User]) -> None:
@@ -203,7 +217,7 @@ def test_partner_sse_saves_message(session: Session, make_user: Callable[..., Us
     use_fake(FakeLLM(fixtures={"partner": "Hi!"}, stream_chunks={"partner": ["Hi", "!"]}))
     with client.stream(
         "GET",
-        f"/conversations/{conversation.id}/messages/{message.id}/partner",
+        f"/api/conversations/{conversation.id}/messages/{message.id}/partner",
     ) as response:
         assert response.status_code == 200
         body = b"".join(response.iter_bytes())
@@ -213,3 +227,13 @@ def test_partner_sse_saves_message(session: Session, make_user: Callable[..., Us
     ).all()
     assert len(partners) == 1
     assert "Hi" in partners[0].content
+
+
+def test_html_conversation_paths_redirect_to_spa(
+    session: Session, make_user: Callable[..., User]
+) -> None:
+    user = make_user()
+    client = _app(session, user)
+    response = client.get("/conversations")
+    assert response.status_code == 303
+    assert response.headers["location"] == "/#/conversations"

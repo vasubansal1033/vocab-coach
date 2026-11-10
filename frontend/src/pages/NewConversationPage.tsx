@@ -4,7 +4,8 @@ import { api } from '../api'
 
 export default function NewConversationPage() {
   const navigate = useNavigate()
-  const [topic, setTopic] = useState('')
+  const [name, setName] = useState('')
+  const [expectations, setExpectations] = useState('')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -13,7 +14,7 @@ export default function NewConversationPage() {
     setBusy(true)
     setError(null)
     try {
-      const conversation = await api.createConversation(topic)
+      const conversation = await api.createConversation(name, expectations)
       navigate(`/conversations/${conversation.id}`)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed')
@@ -26,19 +27,35 @@ export default function NewConversationPage() {
       <div className="page-head">
         <div>
           <h1>New conversation</h1>
-          <p className="muted">Give the partner a topic or scenario to steer toward.</p>
+          <p className="muted">
+            Name the practice scenario. Optionally say what kind of wording feedback you want so
+            the editor can prefer specialized terms for that situation.
+          </p>
         </div>
       </div>
       <form className="panel stack" onSubmit={onSubmit}>
         <label className="field">
-          Topic or scenario
+          Conversation name
           <input
-            value={topic}
-            onChange={(e) => setTopic(e.target.value)}
-            placeholder="e.g. How last week's database migration went"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            placeholder="e.g. Explaining a production outage to my team"
             required
           />
         </label>
+        <label className="field">
+          Feedback expectations (optional)
+          <textarea
+            value={expectations}
+            onChange={(e) => setExpectations(e.target.value)}
+            placeholder="e.g. Prefer SRE / incident vocabulary; stay calm and specific about blast radius, rollback, and customer impact."
+            rows={4}
+          />
+        </label>
+        <p className="muted">
+          Leave blank for general precise English. Fill in when this chat needs domain words (legal,
+          medical, product, academic, etc.).
+        </p>
         {error && <p className="error">{error}</p>}
         <button type="submit" disabled={busy}>
           {busy ? 'Starting…' : 'Start'}

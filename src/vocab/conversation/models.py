@@ -27,6 +27,8 @@ class Conversation(Base):
     id: Mapped[str] = mapped_column(String, primary_key=True, default=new_id)
     user_id: Mapped[str] = mapped_column(ForeignKey("users.id"), index=True)
     title: Mapped[str] = mapped_column(String, default="")
+    # Optional brief for the editor: domain, tone, specialized terms to prefer.
+    feedback_expectations: Mapped[str | None] = mapped_column(Text, nullable=True, default=None)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
     messages: Mapped[list[Message]] = relationship(

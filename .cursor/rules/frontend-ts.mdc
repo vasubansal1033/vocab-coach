@@ -1,0 +1,14 @@
+---
+description: React/TypeScript conventions for the SPA
+globs: "frontend/**/*.{ts,tsx,css}"
+alwaysApply: false
+---
+
+# Frontend style
+
+- Components: one job. Pages orchestrate; shared UI under `frontend/src/components/`.
+- Effects: clean up subscriptions (`EventSource`, timers). Treat StrictMode double-mount as expected.
+- API access only through `frontend/src/api.ts`.
+- User-visible copy: plain sentences, no em dashes.
+- Prefer CSS variables already in `styles.css`; match existing visual language.
+- After SPA changes: `cd frontend && npm run build` so `frontend/dist` stays in sync with uvicorn.

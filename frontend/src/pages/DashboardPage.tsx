@@ -10,6 +10,8 @@ import {
 } from 'chart.js'
 import { Line } from 'react-chartjs-2'
 import { api, type Dashboard } from '../api'
+import InfoTip from '../components/InfoTip'
+import { METRIC_DEFINITIONS } from '../metricsCopy'
 
 ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Tooltip)
 
@@ -75,34 +77,53 @@ export default function DashboardPage() {
         <>
           <div className="metrics">
             <div className="metric">
-              <span className="muted">Crutch rate</span>
+              <InfoTip label="Crutch rate" definition={METRIC_DEFINITIONS.crutchRate} />
               <strong>{data.crutch_rate == null ? '—' : data.crutch_rate.toFixed(1)}</strong>
             </div>
             <div className="metric">
-              <span className="muted">Acceptance</span>
+              <InfoTip label="Acceptance" definition={METRIC_DEFINITIONS.acceptance} />
               <strong>{pct(data.acceptance)}</strong>
             </div>
             <div className="metric">
-              <span className="muted">Spontaneous</span>
+              <InfoTip label="Spontaneous" definition={METRIC_DEFINITIONS.spontaneous} />
               <strong>{pct(data.spontaneous)}</strong>
             </div>
             <div className="metric">
-              <span className="muted">Misuse</span>
+              <InfoTip label="Misuse" definition={METRIC_DEFINITIONS.misuse} />
               <strong>{pct(data.misuse)}</strong>
             </div>
             <div className="metric">
-              <span className="muted">MTLD</span>
+              <InfoTip label="MTLD" definition={METRIC_DEFINITIONS.mtld} />
               <strong>{data.mtld == null ? '—' : data.mtld.toFixed(1)}</strong>
             </div>
           </div>
 
           <section className="panel">
-            <h2>Weekly crutch rate</h2>
-            {chart && <Line data={chart} options={{ scales: { y: { beginAtZero: true } } }} />}
+            <h2>
+              <InfoTip label="Weekly crutch rate" definition={METRIC_DEFINITIONS.crutchRate} />
+            </h2>
+            {chart && (
+              <Line
+                data={chart}
+                options={{
+                  scales: { y: { beginAtZero: true } },
+                  plugins: {
+                    tooltip: {
+                      callbacks: {
+                        label: (ctx) =>
+                          `${ctx.parsed.y?.toFixed(1) ?? '—'} per 1000 words`,
+                      },
+                    },
+                  },
+                }}
+              />
+            )}
           </section>
 
           <section className="panel">
-            <h2>Overused words</h2>
+            <h2>
+              <InfoTip label="Overused words" definition={METRIC_DEFINITIONS.overuseLift} />
+            </h2>
             {!data.overuse.length ? (
               <p className="muted">No surface forms with five or more uses yet.</p>
             ) : (
@@ -111,7 +132,9 @@ export default function DashboardPage() {
                   <tr>
                     <th>Word</th>
                     <th>Uses</th>
-                    <th>Lift</th>
+                    <th>
+                      <InfoTip label="Lift" definition={METRIC_DEFINITIONS.overuseLift} />
+                    </th>
                     <th>Groups</th>
                   </tr>
                 </thead>
@@ -132,7 +155,9 @@ export default function DashboardPage() {
           </section>
 
           <section className="panel">
-            <h2>Acceptance filter</h2>
+            <h2>
+              <InfoTip label="Acceptance filter" definition={METRIC_DEFINITIONS.acceptance} />
+            </h2>
             <form className="stack" onSubmit={onFilter}>
               <label className="field">
                 prompt_version
@@ -147,7 +172,9 @@ export default function DashboardPage() {
           </section>
 
           <section className="panel">
-            <h2>Drill score</h2>
+            <h2>
+              <InfoTip label="Drill score" definition={METRIC_DEFINITIONS.drillScore} />
+            </h2>
             {!data.drill_weeks.length ? (
               <p className="muted">No drills yet.</p>
             ) : (

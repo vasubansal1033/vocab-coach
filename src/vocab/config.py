@@ -34,13 +34,13 @@ class Settings(BaseSettings):
     ollama_api_base: str = "http://localhost:11434"
 
     llm_partner_prompt_version: int = 1
-    llm_editor_prompt_version: int = 1
+    llm_editor_prompt_version: int = 3
     llm_usage_judge_prompt_version: int = 1
     llm_drill_gen_prompt_version: int = 1
     llm_drill_grade_prompt_version: int = 1
     llm_group_gen_prompt_version: int = 1
 
-    editor_max_suggestions: int = 2
+    editor_max_suggestions: int = 3
     # Empty means nobody is admin until set; /admin/lexicon returns 404.
     admin_user_id: str = ""
 

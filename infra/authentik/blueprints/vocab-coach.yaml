@@ -159,3 +159,30 @@ entries:
         - email
         - username
       enrollment_flow: !KeyOf flow
+  # Login rate limiting: deny when IP/username reputation drops after failed attempts.
+  - model: authentik_policies_reputation.reputationpolicy
+    id: vocab-login-reputation
+    identifiers:
+      name: vocab-coach-login-reputation
+    attrs:
+      check_ip: true
+      check_username: true
+      threshold: -5
+      execution_logging: true
+  - model: authentik_policies.policybinding
+    identifiers:
+      order: 0
+      target: !Find [authentik_flows.flow, [slug, default-authentication-flow]]
+      policy: !KeyOf vocab-login-reputation
+    attrs:
+      enabled: true
+      failure_result: false
+  - model: authentik_policies.policybinding
+    identifiers:
+      order: 0
+      target: !Find [authentik_core.application, [slug, vocab-coach]]
+      policy: !KeyOf vocab-login-reputation
+    attrs:
+      enabled: true
+      failure_result: false
+

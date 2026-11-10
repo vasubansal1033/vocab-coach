@@ -27,8 +27,8 @@ class EditorRun(Base):
     __tablename__ = "editor_runs"
 
     id: Mapped[str] = mapped_column(String, primary_key=True, default=new_id)
-    # No FK to messages yet; Conversation UI adds that table.
-    message_id: Mapped[str] = mapped_column(String, index=True)
+    # FK for integrity; delete_conversation / delete_user still delete rows explicitly.
+    message_id: Mapped[str] = mapped_column(ForeignKey("messages.id"), index=True)
     user_id: Mapped[str] = mapped_column(ForeignKey("users.id"), index=True)
     llm_call_id: Mapped[str | None] = mapped_column(
         ForeignKey("llm_calls.id"), nullable=True, default=None
@@ -48,7 +48,7 @@ class Suggestion(Base):
 
     id: Mapped[str] = mapped_column(String, primary_key=True, default=new_id)
     editor_run_id: Mapped[str] = mapped_column(ForeignKey("editor_runs.id"), index=True)
-    message_id: Mapped[str] = mapped_column(String, index=True)
+    message_id: Mapped[str] = mapped_column(ForeignKey("messages.id"), index=True)
     user_id: Mapped[str] = mapped_column(ForeignKey("users.id"), index=True)
     original_text: Mapped[str] = mapped_column(String)
     span_start: Mapped[int] = mapped_column(Integer)

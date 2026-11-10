@@ -43,6 +43,7 @@ def export_user(session: Session, user_id: str) -> dict[str, Any]:
             {
                 "id": c.id,
                 "title": c.title,
+                "feedback_expectations": c.feedback_expectations,
                 "created_at": c.created_at.isoformat() if c.created_at else None,
                 "messages": [
                     {

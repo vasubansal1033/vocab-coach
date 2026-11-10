@@ -2,7 +2,18 @@
 {% block title %}{{ conversation.title }} · vocab-coach{% endblock %}
 {% block content %}
 <p><a href="/conversations">All conversations</a></p>
-<h1>{{ conversation.title }}</h1>
+<div class="page-head">
+  <div>
+    <h1>{{ conversation.title }}</h1>
+    {% if conversation.feedback_expectations %}
+    <p class="muted">Feedback focus: {{ conversation.feedback_expectations }}</p>
+    {% endif %}
+  </div>
+  <form method="post" action="/conversations/{{ conversation.id }}/delete"
+        onsubmit="return confirm('Delete this conversation permanently?');">
+    <button type="submit" class="ghost">Delete conversation</button>
+  </form>
+</div>
 
 <div id="thread">
   {% for message in conversation.messages %}

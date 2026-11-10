@@ -277,6 +277,39 @@ button.rating:hover {
   border-color: rgba(15, 118, 110, 0.45);
 }
 
+.panel-title {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 1.15rem;
+}
+
+.plain-list {
+  margin: 0;
+  padding-left: 1.1rem;
+}
+
+.conversation-row {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 0.65rem;
+  align-items: stretch;
+}
+
+.conversation-row .row {
+  min-width: 0;
+}
+
+.row-sub {
+  display: block;
+  font-size: 0.85rem;
+  margin-top: 0.2rem;
+}
+
+button.danger,
+.ghost.danger {
+  color: var(--warn);
+}
+
 label.field {
   display: grid;
   gap: 0.4rem;
@@ -331,10 +364,66 @@ textarea {
   white-space: pre-wrap;
 }
 
-.feedback {
-  margin-top: 0.85rem;
-  padding-top: 0.85rem;
-  border-top: 1px dashed var(--line);
+.turn {
+  display: grid;
+  gap: 0.65rem;
+}
+
+.feedback-panel {
+  margin: 0 0 0 0.75rem;
+  padding: 1rem 1.1rem;
+  border-radius: 16px;
+  border: 1px dashed rgba(15, 118, 110, 0.45);
+  background: rgba(255, 255, 255, 0.78);
+  box-shadow: var(--shadow);
+  animation: rise 320ms ease both;
+}
+
+.feedback-panel-title {
+  margin: 0 0 0.65rem;
+  font-family: var(--font-display);
+  font-size: 1.05rem;
+  font-weight: 600;
+  color: var(--accent);
+}
+
+.feedback-overview {
+  margin: 0 0 0.75rem;
+  color: var(--muted);
+}
+
+.highlighted {
+  margin: 0 0 0.85rem;
+  line-height: 1.55;
+  white-space: pre-wrap;
+}
+
+.highlighted mark.mark-a {
+  background: rgba(194, 65, 12, 0.28);
+  color: inherit;
+  padding: 0.05em 0.15em;
+  border-radius: 0.25em;
+}
+
+.highlighted mark.mark-b {
+  background: rgba(15, 118, 110, 0.28);
+  color: inherit;
+  padding: 0.05em 0.15em;
+  border-radius: 0.25em;
+}
+
+.highlighted mark.mark-c {
+  background: rgba(37, 99, 235, 0.25);
+  color: inherit;
+  padding: 0.05em 0.15em;
+  border-radius: 0.25em;
+}
+
+.highlighted mark.mark-keep {
+  background: rgba(21, 122, 75, 0.2);
+  color: inherit;
+  padding: 0.05em 0.15em;
+  border-radius: 0.25em;
 }
 
 .suggestion {
@@ -378,6 +467,86 @@ textarea {
   font-family: var(--font-display);
   font-size: 1.7rem;
   margin-top: 0.2rem;
+}
+
+.info-tip {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  max-width: 100%;
+}
+
+.info-tip-trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  box-shadow: none;
+  cursor: help;
+  text-align: left;
+}
+
+.info-tip-trigger:hover,
+.info-tip-trigger:focus-visible {
+  transform: none;
+  background: transparent;
+  color: var(--ink);
+}
+
+.info-tip-mark {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.05rem;
+  height: 1.05rem;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  color: var(--muted);
+  font-size: 0.7rem;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.info-tip-bubble {
+  position: absolute;
+  left: 0;
+  bottom: calc(100% + 0.45rem);
+  z-index: 20;
+  width: min(18rem, 70vw);
+  padding: 0.7rem 0.8rem;
+  border-radius: 12px;
+  border: 1px solid var(--line);
+  background: #fff;
+  color: var(--ink);
+  font-size: 0.88rem;
+  font-weight: 450;
+  line-height: 1.4;
+  box-shadow: var(--shadow);
+  opacity: 0;
+  visibility: hidden;
+  transform: translateY(4px);
+  transition: opacity 140ms ease, transform 140ms ease, visibility 140ms ease;
+  pointer-events: none;
+}
+
+.info-tip:hover .info-tip-bubble,
+.info-tip:focus-within .info-tip-bubble {
+  opacity: 1;
+  visibility: visible;
+  transform: translateY(0);
+}
+
+.panel h2 .info-tip-trigger {
+  font-family: var(--font-display);
+  font-size: inherit;
+  letter-spacing: -0.02em;
+  color: var(--ink);
 }
 
 .table {

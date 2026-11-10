@@ -40,6 +40,7 @@ export type User = {
 export type Conversation = {
   id: string
   title: string
+  feedback_expectations?: string | null
   created_at: string | null
   messages?: Message[]
 }
@@ -54,8 +55,20 @@ export type Message = {
 export type Suggestion = {
   id: string
   original_text: string
+  span_start: number
+  span_end: number
   question: string | null
+  why: string | null
   options: { id: string; word: string; meaning: string }[]
+}
+
+export type FeedbackPayload = {
+  failed: boolean
+  content?: string
+  overview?: string | null
+  highlighted_html?: string
+  keep?: string[]
+  suggestions: Suggestion[]
 }
 
 export type Dashboard = {
@@ -76,14 +89,32 @@ export type Dashboard = {
   mtld: number | null
 }
 
+export type Account = {
+  user: User
+  limits: {
+    llm_calls_24h: number
+    llm_call_limit_per_day: number
+    llm_cost_usd_24h: number
+    llm_cost_limit_usd_per_day: number
+  }
+  privacy_note: string
+}
+
 export const api = {
   me: () => request<User>('/api/me'),
+  account: () => request<Account>('/api/account'),
+  deleteAccount: () => request<void>('/api/account/delete', { method: 'POST' }),
   conversations: () => request<{ conversations: Conversation[] }>('/api/conversations'),
-  createConversation: (topic: string) =>
+  createConversation: (name: string, feedbackExpectations?: string) =>
     request<Conversation>('/api/conversations', {
       method: 'POST',
-      body: JSON.stringify({ topic }),
+      body: JSON.stringify({
+        name,
+        feedback_expectations: feedbackExpectations?.trim() || null,
+      }),
     }),
+  deleteConversation: (id: string) =>
+    request<void>(`/api/conversations/${id}`, { method: 'DELETE' }),
   conversation: (id: string) => request<Conversation>(`/api/conversations/${id}`),
   postMessage: (id: string, content: string) =>
     request<Message>(`/api/conversations/${id}/messages`, {
@@ -91,7 +122,7 @@ export const api = {
       body: JSON.stringify({ content }),
     }),
   feedback: (conversationId: string, messageId: string) =>
-    request<{ failed: boolean; suggestions: Suggestion[] }>(
+    request<FeedbackPayload>(
       `/api/conversations/${conversationId}/messages/${messageId}/feedback`,
     ),
   accept: (conversationId: string, suggestionId: string, optionId: string) =>

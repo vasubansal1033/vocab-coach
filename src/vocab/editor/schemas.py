@@ -25,6 +25,10 @@ class EditorSuggestion(BaseModel):
 
 
 class EditorOutput(BaseModel):
+    overview: str = Field(
+        default="",
+        description="One or two sentences on how the whole message reads and its main vagueness",
+    )
     suggestions: list[EditorSuggestion] = Field(max_length=3)
     keep: list[str] = Field(
         description="Words that looked like candidates but are already the right word"

@@ -1,25 +1,25 @@
-"""Account export and deletion endpoints."""
+"""Account page redirects into the SPA; export/delete stay as HTTP endpoints."""
 
 from __future__ import annotations
 
-from pathlib import Path
-
 from fastapi import APIRouter, Depends, Request
-from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
-from fastapi.templating import Jinja2Templates
+from fastapi.responses import JSONResponse, RedirectResponse
 from sqlalchemy.orm import Session
 
 from vocab.account.service import delete_user, export_user
 from vocab.auth.deps import SESSION_KEY, current_user
 from vocab.auth.models import User
 from vocab.db import get_session
-
-WEB_DIR = Path(__file__).resolve().parent.parent / "web"
-templates = Jinja2Templates(directory=WEB_DIR / "templates")
+from vocab.web.spa import spa_redirect
 
 
 def build_router() -> APIRouter:
     router = APIRouter()
+
+    @router.get("/account")
+    def account_page(user: User = Depends(current_user)) -> RedirectResponse:
+        _ = user
+        return spa_redirect("/account")
 
     @router.get("/account/export")
     def account_export(
@@ -32,17 +32,6 @@ def build_router() -> APIRouter:
             headers={"Content-Disposition": 'attachment; filename="vocab-export.json"'},
         )
 
-    @router.get("/account", response_class=HTMLResponse)
-    def account_page(
-        request: Request,
-        user: User = Depends(current_user),
-    ) -> HTMLResponse:
-        return templates.TemplateResponse(
-            request,
-            "account/index.html",
-            {"user": user},
-        )
-
     @router.post("/account/delete")
     def account_delete(
         request: Request,
@@ -51,7 +40,6 @@ def build_router() -> APIRouter:
     ) -> RedirectResponse:
         delete_user(session, user.id)
         request.session.clear()
-        # Drop the key explicitly in case clear is a no-op in tests.
         request.session.pop(SESSION_KEY, None)
         return RedirectResponse(url="/auth/logout", status_code=303)
 

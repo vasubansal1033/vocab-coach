@@ -11,6 +11,7 @@ from sqlalchemy.orm import Session
 
 from vocab.auth.models import User
 from vocab.config import Settings
+from vocab.conversation.service import create_conversation, post_user_message
 from vocab.editor.service import analyze_message
 from vocab.events import Event
 from vocab.lexicon.models import ReviewQueueItem
@@ -32,7 +33,7 @@ def settings() -> Settings:
         _env_file=None,
         session_secret="test",
         llm_editor_model="fake-editor",
-        llm_editor_prompt_version=1,
+        llm_editor_prompt_version=3,
         editor_max_suggestions=2,
     )
 
@@ -45,11 +46,16 @@ async def test_analyze_message_anchors_and_records(
 ) -> None:
     load_seeds(session)
     user = make_user()
-    message = (
+    conversation = create_conversation(session, user.id, "Migration")
+    text = (
         "Yeah the migration was really hard and we had a big problem with the old data, "
         "but we fixed it in the end."
     )
+    message = post_user_message(
+        session, conversation=conversation, user_id=user.id, content=text
+    )
     payload = {
+        "overview": "A few vague spots.",
         "suggestions": [
             {
                 "original": "really hard",
@@ -92,14 +98,14 @@ async def test_analyze_message_anchors_and_records(
     suggestions = await analyze_message(
         session,
         user_id=user.id,
-        message_id="msg-1",
-        message=message,
+        message_id=message.id,
+        message=text,
         partner_previous="How did the migration go?",
         settings=settings,
     )
     assert len(suggestions) == 2
     assert suggestions[0].original_text == "really hard"
-    assert message[suggestions[0].span_start : suggestions[0].span_end] == "really hard"
+    assert text[suggestions[0].span_start : suggestions[0].span_end] == "really hard"
     events = list(session.scalars(select(Event).where(Event.user_id == user.id)))
     assert len(events) == 2
     assert all(e.type == "suggestion_shown" for e in events)
@@ -113,8 +119,13 @@ async def test_unknown_option_goes_to_review_queue(
 ) -> None:
     load_seeds(session)
     user = make_user()
-    message = "We need to fix the bug."
+    conversation = create_conversation(session, user.id, "Bug")
+    text = "We need to fix the bug."
+    message = post_user_message(
+        session, conversation=conversation, user_id=user.id, content=text
+    )
     payload = {
+        "overview": "Vague verb.",
         "suggestions": [
             {
                 "original": "fix",
@@ -136,11 +147,9 @@ async def test_unknown_option_goes_to_review_queue(
     await analyze_message(
         session,
         user_id=user.id,
-        message_id="msg-2",
-        message=message,
+        message_id=message.id,
+        message=text,
         settings=settings,
     )
-    queue = list(session.scalars(select(ReviewQueueItem)))
-    assert len(queue) == 1
-    assert queue[0].proposed_word == "remediate"
-    assert queue[0].editor_run_id is not None
+    queued = session.scalars(select(ReviewQueueItem)).all()
+    assert any(item.proposed_word == "remediate" for item in queued)

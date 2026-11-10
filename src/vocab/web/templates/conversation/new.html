@@ -3,10 +3,15 @@
 {% block content %}
 <h1>New conversation</h1>
 <form method="post" action="/conversations/new">
-  <label>Topic or scenario
-    <input type="text" name="topic" required size="60"
-           placeholder="e.g. How last week's database migration went">
+  <label>Conversation name
+    <input type="text" name="name" required size="60"
+           placeholder="e.g. Explaining a production outage to my team">
   </label>
+  <label>Feedback expectations (optional)
+    <textarea name="feedback_expectations" rows="4" cols="60"
+              placeholder="e.g. Prefer SRE / incident vocabulary; keep tone calm and specific about blast radius and rollback."></textarea>
+  </label>
+  <p class="muted">Optional. Steers wording feedback toward the specialized terms that fit this situation.</p>
   <button type="submit">Start</button>
 </form>
 {% endblock %}

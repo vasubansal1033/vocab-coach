@@ -1,0 +1,52 @@
+mark.mark-a {
+  background: rgba(194, 65, 12, 0.28);
+  color: inherit;
+  padding: 0.05em 0.15em;
+  border-radius: 0.25em;
+}
+
+mark.mark-b {
+  background: rgba(15, 118, 110, 0.28);
+  color: inherit;
+  padding: 0.05em 0.15em;
+  border-radius: 0.25em;
+}
+
+mark.mark-c {
+  background: rgba(37, 99, 235, 0.25);
+  color: inherit;
+  padding: 0.05em 0.15em;
+  border-radius: 0.25em;
+}
+
+mark.mark-keep {
+  background: rgba(21, 122, 75, 0.2);
+  color: inherit;
+  padding: 0.05em 0.15em;
+  border-radius: 0.25em;
+}
+
+.turn {
+  display: grid;
+  gap: 0.65rem;
+}
+
+.feedback-panel {
+  margin: 0 0 0 0.75rem;
+  padding: 1rem 1.1rem;
+  border-radius: 16px;
+  border: 1px dashed rgba(15, 118, 110, 0.45);
+  background: rgba(255, 255, 255, 0.78);
+}
+
+.feedback-panel-title {
+  margin: 0 0 0.65rem;
+  font-size: 1.05rem;
+  font-weight: 600;
+  color: #0f766e;
+}
+
+.feedback-overview {
+  margin: 0 0 0.75rem;
+  color: #5a6b76;
+}

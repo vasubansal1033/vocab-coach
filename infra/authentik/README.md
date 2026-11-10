@@ -24,7 +24,10 @@ Changing the secrets after the first start breaks the existing database, so do n
 
 - the OAuth2/OpenID provider `vocab-coach` (confidential, RS256, scopes `openid email profile`) with the strict redirect URI `http://localhost:8000/auth/callback`;
 - the application with slug `vocab-coach`;
-- the `default-enrollment-flow` sign-up flow, and a "Sign up" link on the login page (the identification stage points at it).
+- the `default-enrollment-flow` sign-up flow, and a "Sign up" link on the login page (the identification stage points at it);
+- a reputation policy (`vocab-coach-login-reputation`) bound to the default authentication flow and the `vocab-coach` application. Failed logins lower IP/username reputation; scores at or below `-5` are denied. That is authentik's login rate limiting for brute-force attempts.
+
+App-side LLM call/cost ceilings are separate (`LLM_RATE_LIMIT_PER_DAY`, `LLM_COST_LIMIT_USD_PER_DAY`) and show on the Account page.
 
 The client ID and secret come from `OIDC_CLIENT_ID` and `OIDC_CLIENT_SECRET` in `infra/authentik/.env`. Put the same two values in the repo-root `.env`. Both files are git-ignored. To make new ones, generate them with `openssl rand -hex 20` and `openssl rand -hex 64`, update both files, then `docker compose -f infra/authentik/compose.yml up -d`.
 

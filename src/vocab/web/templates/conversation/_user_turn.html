@@ -1,12 +1,15 @@
-<div class="msg user" id="msg-{{ message.id }}">
-  <strong>You</strong>
-  <p id="msg-text-{{ message.id }}">{{ message.content }}</p>
-  <div id="feedback-{{ message.id }}"
-       hx-get="/conversations/{{ conversation.id }}/messages/{{ message.id }}/feedback"
-       hx-trigger="load"
-       hx-swap="innerHTML">
-    <p>Checking wording…</p>
+<div class="turn" id="turn-{{ message.id }}">
+  <div class="msg user" id="msg-{{ message.id }}">
+    <strong>You</strong>
+    <p id="msg-text-{{ message.id }}">{{ message.content }}</p>
   </div>
+  <aside class="feedback-panel" id="feedback-{{ message.id }}"
+         aria-label="Wording feedback"
+         hx-get="/conversations/{{ conversation.id }}/messages/{{ message.id }}/feedback"
+         hx-trigger="load"
+         hx-swap="innerHTML">
+    <p>Checking wording…</p>
+  </aside>
 </div>
 
 <div class="msg partner" id="partner-pending-{{ message.id }}"

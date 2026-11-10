@@ -1,0 +1,15 @@
+---
+description: Google-flavoured Python style for src/vocab and tests
+globs: "**/*.py"
+alwaysApply: false
+---
+
+# Python style
+
+- Imports: stdlib, third party, local (`I` via ruff). Absolute imports from `vocab.*`.
+- Naming: `snake_case` functions/vars, `PascalCase` classes, `UPPER_SNAKE` constants.
+- Docstrings: one-line or short paragraph explaining **why**, not a restatement of the signature.
+- Prefer early returns over deep nesting.
+- No bare `except:`. Log then fail closed for user-facing paths.
+- Pydantic models for request bodies and structured LLM output; validate at the boundary.
+- FastAPI: declare dependencies explicitly; keep handlers under ~40 lines when practical by calling services.

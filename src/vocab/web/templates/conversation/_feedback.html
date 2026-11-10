@@ -1,9 +1,11 @@
+<p class="feedback-panel-title">Wording feedback</p>
 {% if failed %}
 <p class="feedback-failed">No feedback for this message</p>
 {% elif not suggestions %}
 <p class="feedback-empty">No wording suggestions.</p>
 {% else %}
 <div class="feedback" id="feedback-body-{{ message.id }}">
+  {% if overview %}<p class="feedback-overview">{{ overview }}</p>{% endif %}
   <p class="highlighted">{{ highlighted_html | safe }}</p>
   {% for suggestion in suggestions %}
   <div class="suggestion" id="suggestion-{{ suggestion.id }}">

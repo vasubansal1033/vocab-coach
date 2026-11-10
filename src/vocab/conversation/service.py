@@ -2,11 +2,11 @@
 
 from __future__ import annotations
 
-from sqlalchemy import select
+from sqlalchemy import delete, select
 from sqlalchemy.orm import Session, selectinload
 
 from vocab.conversation.models import Conversation, Message, MessageLemmaCount
-from vocab.editor.models import Suggestion, SuggestionOption
+from vocab.editor.models import EditorRun, Suggestion, SuggestionOption
 from vocab.events import SuggestionAcceptedPayload, record_event
 from vocab.nlp.analyzer import analyze
 from vocab.nlp.persist import lemma_count_rows, word_count_value
@@ -29,13 +29,52 @@ def get_conversation(session: Session, conversation_id: str) -> Conversation | N
     ).first()
 
 
-def create_conversation(session: Session, user_id: str, topic: str) -> Conversation:
-    """Start a thread; title holds the topic/scenario for the partner prompt."""
-    conversation = Conversation(user_id=user_id, title=topic.strip() or "Conversation")
+def create_conversation(
+    session: Session,
+    user_id: str,
+    name: str,
+    *,
+    feedback_expectations: str | None = None,
+) -> Conversation:
+    """Start a thread; title is the name/scenario; optional editor brief for domain vocabulary."""
+    brief = (feedback_expectations or "").strip() or None
+    conversation = Conversation(
+        user_id=user_id,
+        title=name.strip() or "Conversation",
+        feedback_expectations=brief,
+    )
     session.add(conversation)
     session.commit()
     session.refresh(conversation)
     return conversation
+
+
+def delete_conversation(session: Session, conversation: Conversation) -> None:
+    """Remove one conversation and its message-linked editor rows. Keep events for metrics.
+
+    Caller must authorize ownership before calling.
+    """
+    message_ids = list(
+        session.scalars(select(Message.id).where(Message.conversation_id == conversation.id))
+    )
+    if message_ids:
+        suggestion_ids = list(
+            session.scalars(select(Suggestion.id).where(Suggestion.message_id.in_(message_ids)))
+        )
+        if suggestion_ids:
+            session.execute(
+                delete(SuggestionOption).where(
+                    SuggestionOption.suggestion_id.in_(suggestion_ids)
+                )
+            )
+        session.execute(delete(Suggestion).where(Suggestion.message_id.in_(message_ids)))
+        session.execute(delete(EditorRun).where(EditorRun.message_id.in_(message_ids)))
+        session.execute(
+            delete(MessageLemmaCount).where(MessageLemmaCount.message_id.in_(message_ids))
+        )
+        session.execute(delete(Message).where(Message.id.in_(message_ids)))
+    session.execute(delete(Conversation).where(Conversation.id == conversation.id))
+    session.commit()
 
 
 def post_user_message(
@@ -116,14 +155,17 @@ def previous_partner_content(session: Session, conversation_id: str) -> str | No
 
 
 def suggestions_for_message(session: Session, message_id: str) -> list[Suggestion]:
-    return list(
-        session.scalars(
-            select(Suggestion)
-            .where(Suggestion.message_id == message_id)
-            .options(selectinload(Suggestion.options))
-            .order_by(Suggestion.rank.asc())
-        )
-    )
+    """Suggestions for the latest editor run on this message (not every historical run)."""
+    from vocab.conversation.feedback import suggestions_for_run
+
+    run = session.scalars(
+        select(EditorRun)
+        .where(EditorRun.message_id == message_id)
+        .order_by(EditorRun.created_at.desc())
+    ).first()
+    if run is None:
+        return []
+    return suggestions_for_run(session, run.id)
 
 
 def accept_suggestion(

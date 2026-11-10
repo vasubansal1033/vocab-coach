@@ -104,10 +104,12 @@ def test_dashboard_pages(
     user = make_user()
     seed_metrics_fixture(session, user)
     login_as(user)
-    home = client.get("/dashboard")
-    assert home.status_code == 200
-    assert b"Crutch rate" in home.content
-    assert b"chart.umd.min.js" in home.content
-    lemma = client.get("/dashboard/lemma/fix")
-    assert lemma.status_code == 200
-    assert b"fix" in lemma.content
+    home = client.get("/dashboard", follow_redirects=False)
+    assert home.status_code == 303
+    assert home.headers["location"] == "/#/dashboard"
+    lemma = client.get("/dashboard/lemma/fix", follow_redirects=False)
+    assert lemma.status_code == 303
+    assert lemma.headers["location"] == "/#/dashboard/lemma/fix"
+    api = client.get("/api/dashboard", headers={"accept": "application/json"})
+    assert api.status_code == 200
+    assert "crutch_rate" in api.json()

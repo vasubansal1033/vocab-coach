@@ -12,3 +12,6 @@ infra/authentik/certs/
 infra/authentik/custom-templates/
 frontend/node_modules/
 frontend/dist/
+evals/qa/latest-report.json
+evals/qa/latest-plan.md
+evals/results/

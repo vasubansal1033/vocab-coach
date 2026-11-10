@@ -8,8 +8,15 @@
 {% else %}
 <ul>
   {% for c in conversations %}
-  <li><a href="/conversations/{{ c.id }}">{{ c.title }}</a>
-    <small>{{ c.created_at }}</small></li>
+  <li>
+    <a href="/conversations/{{ c.id }}">{{ c.title }}</a>
+    <small>{{ c.created_at }}</small>
+    <form method="post" action="/conversations/{{ c.id }}/delete"
+          style="display:inline"
+          onsubmit="return confirm('Delete this conversation permanently?');">
+      <button type="submit" class="ghost">Delete</button>
+    </form>
+  </li>
   {% endfor %}
 </ul>
 {% endif %}
