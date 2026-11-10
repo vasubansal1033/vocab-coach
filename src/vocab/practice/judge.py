@@ -7,7 +7,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from vocab.config import Settings, get_settings
-from vocab.llm.client import complete
+from vocab.llm.graphs import run_structured_role
 from vocab.llm.models import LlmCall
 
 
@@ -27,7 +27,7 @@ async def judge_usage(
 ) -> tuple[UsageJudgeOutput, str | None]:
     """Return the judge result and the llm_calls id when available."""
     settings = settings or get_settings()
-    result = await complete(
+    result = await run_structured_role(
         "usage_judge",
         {
             "sentence": sentence,

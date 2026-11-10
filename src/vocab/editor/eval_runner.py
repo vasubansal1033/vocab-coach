@@ -16,7 +16,7 @@ from sqlalchemy.orm import Session
 from vocab.config import Settings, get_settings
 from vocab.editor.schemas import EditorOutput
 from vocab.lexicon.service import approved_groups_for_lemma, load_seeds
-from vocab.llm.client import complete
+from vocab.llm.graphs import run_structured_role
 from vocab.nlp.analyzer import analyze
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
@@ -100,7 +100,7 @@ async def _run_case(
     output: EditorOutput | None = None
     error: str | None = None
     try:
-        result = await complete(
+        result = await run_structured_role(
             "editor",
             variables,
             output_model=EditorOutput,

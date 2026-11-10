@@ -11,7 +11,7 @@ from vocab.drills.schemas import DrillGenOutput, DrillGradeOutput
 from vocab.drills.select import select_group
 from vocab.events import DrillGradedPayload, record_event
 from vocab.lexicon.models import PrecisionGroup
-from vocab.llm.client import complete
+from vocab.llm.graphs import run_structured_role
 from vocab.llm.models import LlmCall
 from vocab.practice.models import SrsCard
 from vocab.practice.srs import review_card
@@ -53,7 +53,7 @@ async def create_drill(
     """Select a group, generate a vague sentence, persist the drill."""
     settings = settings or get_settings()
     group = select_group(session, user_id)
-    result = await complete(
+    result = await run_structured_role(
         "drill_gen",
         {"group": _group_payload(group)},
         user_id=user_id,
@@ -91,7 +91,7 @@ async def grade_attempt(
         .where(PrecisionGroup.id == drill.group_id)
         .options(selectinload(PrecisionGroup.options))
     ).one()
-    result = await complete(
+    result = await run_structured_role(
         "drill_grade",
         {
             "vague_sentence": drill.vague_sentence,

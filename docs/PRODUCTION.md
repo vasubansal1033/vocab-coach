@@ -15,6 +15,15 @@ Personal-phase deploy notes. Do these before exposing the app beyond your own ma
 - Run `uv run alembic upgrade head`, then apply `infra/postgres/rls.sql`.
 - To move an existing SQLite file: `uv run vocab db copy-sqlite --sqlite … --postgres …`
 
+## LLM providers
+
+1. Copy `.env.example` to `.env`.
+2. Set the provider key (`OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, and/or `GEMINI_API_KEY`).
+3. Set each `LLM_*_MODEL` to a LiteLLM string such as `openai/gpt-4o-mini` or `anthropic/claude-sonnet-4-5-20250929`.
+4. Check with `uv run vocab llm ping editor` (and other roles).
+
+FakeLLM is only for unit tests. Do not set it in `.env`.
+
 ## Limits and privacy
 
 - Set `LLM_RATE_LIMIT_PER_DAY` and `LLM_COST_LIMIT_USD_PER_DAY` for real traffic.

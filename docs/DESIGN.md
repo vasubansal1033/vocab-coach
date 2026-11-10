@@ -28,6 +28,7 @@ Library versions in this document were checked on 10 Nov 2026 by installing them
 | Migrations | Alembic | 1.20.1 | Run with `render_as_batch=True` because SQLite cannot alter most column properties in place |
 | Settings | pydantic-settings | 2.16.2 | Typed configuration from environment variables and `.env` |
 | LLM access | LiteLLM | 1.108.4 | One interface for Ollama and hosted APIs, so a model change is a configuration change |
+| Agent workflows | LangGraph | 1.2.x | Orchestrates role calls (editor, partner stream, judges, drills); nodes still call LiteLLM through `vocab.llm.client` |
 | Identity | authentik (self-hosted, Docker Compose) | docs version 2026.8 | Login, sign-up and sessions through OpenID Connect |
 | OIDC client | Authlib (Starlette integration) | 1.9.5 | Authorization code flow handled on the server, with the session in a signed cookie |
 | NLP | spaCy with `en_core_web_sm` | 3.8.18 | Tokens, lemmas and parts of speech |
@@ -165,19 +166,28 @@ Metrics are computed from `events`, `messages` and `message_lemma_counts`. The `
 
 #### Roles, not model names
 
-Application code asks for a role, never a model. `config.py` maps roles to LiteLLM model strings, for example:
+Application code asks for a role, never a model. LangGraph workflows in `vocab.llm.graphs` orchestrate those roles (structured calls, partner streaming, multi-hit usage judging). Nodes still call `complete` / `stream`, which talk to LiteLLM. `config.py` maps roles to LiteLLM model strings, for example:
 
 ```env
-LLM_PARTNER_MODEL=ollama_chat/<local-model-tag>
-LLM_EDITOR_MODEL=<provider>/<model-name>
-LLM_USAGE_JUDGE_MODEL=<provider>/<model-name>
-LLM_DRILL_GEN_MODEL=ollama_chat/<local-model-tag>
-LLM_DRILL_GRADE_MODEL=<provider>/<model-name>
-LLM_GROUP_GEN_MODEL=<provider>/<model-name>
+# Provider API keys (LiteLLM reads these from the environment):
+OPENAI_API_KEY=...
+ANTHROPIC_API_KEY=...
+GEMINI_API_KEY=...
+
+# Model strings are provider/model, one per role. Examples:
+LLM_EDITOR_MODEL=openai/gpt-4o
+LLM_PARTNER_MODEL=anthropic/claude-sonnet-4-5-20250929
+LLM_USAGE_JUDGE_MODEL=gemini/gemini-2.0-flash
+# Or local:
+LLM_PARTNER_MODEL=ollama_chat/llama3.2
 OLLAMA_API_BASE=http://localhost:11434
 ```
 
-The model tags are left as placeholders on purpose. Pick them when you start, using the editor eval described below to compare them.
+Copy `.env.example` to `.env`, set the key for the provider you use, and uncomment that provider's model block. Roles can mix providers. Use `uv run vocab llm ping <role>` to check a role. Pick models with the editor eval when quality matters.
+
+#### FakeLLM (tests only)
+
+`FakeLLM` is not a runtime setting and is not redundant. Unit tests install it with `use_fake(...)` so pytest never calls a real provider. Production always uses LiteLLM and your API keys. Remove FakeLLM only if you are willing to make every unit test hit the network.
 
 #### Structured output
 

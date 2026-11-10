@@ -29,7 +29,7 @@ docker compose -f infra/authentik/compose.yml up -d   # authentik on http://loca
 src/vocab/
   main.py  config.py  db.py  events.py  cli.py
   auth/          OIDC login, identities, current_user, authorize()
-  llm/           the only module that imports litellm; roles, prompts, logging
+  llm/           litellm + LangGraph only here; roles, graphs, prompts, logging
   prompts/       <role>.v<N>.md prompt files, never edited after use
   nlp/           spaCy analyzer, candidate spans, learned-word matching
   lexicon/       precision groups, drafting, review queue
@@ -64,7 +64,8 @@ tests/
 
 #### LLM calls
 
-- Only `src/vocab/llm/` imports `litellm`. Other code calls `llm.complete(role, ...)` or `llm.stream(role, ...)`.
+- Only `src/vocab/llm/` imports `litellm` or LangGraph. Other code calls `run_structured_role`, `run_partner_stream`, or the lower-level `complete` / `stream` helpers.
+- LangGraph workflows in `llm/graphs.py` orchestrate roles; nodes still call `complete` / `stream`.
 - Code refers to roles, never model names. Model names come from settings.
 - A prompt file that has produced recorded data is never edited; create the next version instead.
 - Every structured output has a Pydantic model and is validated. Do not trust character offsets from a model; locate text in the source string.

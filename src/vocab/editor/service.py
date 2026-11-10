@@ -13,7 +13,7 @@ from vocab.editor.schemas import EditorOutput, EditorSuggestion
 from vocab.events import SuggestionShownPayload, record_event
 from vocab.lexicon.models import PrecisionGroup, PrecisionOption, ReviewQueueItem
 from vocab.lexicon.service import approved_groups_for_lemma
-from vocab.llm.client import complete
+from vocab.llm.graphs import run_structured_role
 from vocab.llm.models import LlmCall
 from vocab.nlp.analyzer import analyze
 
@@ -105,7 +105,7 @@ async def analyze_message(
         "groups": _groups_payload(groups),
     }
 
-    output = await complete(
+    output = await run_structured_role(
         "editor",
         variables,
         user_id=user_id,

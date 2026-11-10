@@ -152,10 +152,10 @@ async def draft_lemma(
     user_id: str | None = None,
 ) -> list[PrecisionGroup]:
     """Ask group_gen for draft groups and store them as draft/llm."""
-    from vocab.llm.client import complete
+    from vocab.llm.graphs import run_structured_role
 
     senses = senses_for_lemma(lemma)
-    result = await complete(
+    result = await run_structured_role(
         "group_gen",
         {"lemma": lemma, "senses": senses},
         user_id=user_id,

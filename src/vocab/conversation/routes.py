@@ -143,13 +143,12 @@ def build_router(settings: Settings | None = None) -> APIRouter:
         uid = user.id
 
         async def event_gen():  # noqa: ANN202
-            from vocab.llm.client import stream
+            from vocab.llm.graphs import run_partner_stream
 
             chunks: list[str] = []
             try:
                 # Reuse the request session so tests and prod hit the same DB.
-                async for chunk in stream(
-                    "partner",
+                async for chunk in run_partner_stream(
                     {"topic": topic, "due_words": due},
                     user_id=uid,
                     history=history,
