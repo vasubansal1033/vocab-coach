@@ -23,8 +23,8 @@ def test_base_page_has_attribution_link(client: TestClient, make_user, login_as)
     assert client.get("/about/attribution").status_code == 200
 
 
-def test_vendored_htmx_is_served(client: TestClient) -> None:
-    assert client.get("/static/vendor/htmx.min.js").status_code == 200
+def test_static_app_css_is_served(client: TestClient) -> None:
+    assert client.get("/static/app.css").status_code == 200
 
 
 def test_empty_session_secret_is_refused() -> None:

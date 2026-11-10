@@ -16,12 +16,9 @@ from vocab.auth.deps import current_user
 from vocab.auth.models import User
 from vocab.auth.oidc import build_router
 from vocab.config import Settings, get_settings
-from vocab.conversation.routes import build_router as build_conversation_router
-from vocab.drills.routes import build_router as build_drills_router
 from vocab.lexicon.admin import build_router as build_lexicon_admin
-from vocab.metrics.routes import build_router as build_metrics_router
 from vocab.nlp.model import load as load_nlp
-from vocab.practice.review_routes import build_router as build_review_router
+from vocab.web.spa_routes import build_router as build_spa_redirect_router
 
 WEB_DIR = Path(__file__).parent / "web"
 SPA_DIR = Path(__file__).resolve().parents[2] / "frontend" / "dist"
@@ -57,11 +54,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(build_router(settings))
     app.include_router(build_api_router(settings))
     app.include_router(build_account_router())
+    app.include_router(build_spa_redirect_router())
     app.include_router(build_lexicon_admin(settings))
-    app.include_router(build_conversation_router(settings))
-    app.include_router(build_review_router())
-    app.include_router(build_drills_router(settings))
-    app.include_router(build_metrics_router())
     app.mount("/static", StaticFiles(directory=WEB_DIR / "static"), name="static")
     if SPA_ASSETS.is_dir():
         app.mount("/assets", StaticFiles(directory=SPA_ASSETS), name="spa_assets")

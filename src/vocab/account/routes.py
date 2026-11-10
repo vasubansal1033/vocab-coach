@@ -1,4 +1,4 @@
-"""Account page redirects into the SPA; export/delete stay as HTTP endpoints."""
+"""Account export and deletion HTTP endpoints (SPA owns the account page UI)."""
 
 from __future__ import annotations
 
@@ -10,16 +10,10 @@ from vocab.account.service import delete_user, export_user
 from vocab.auth.deps import SESSION_KEY, current_user
 from vocab.auth.models import User
 from vocab.db import get_session
-from vocab.web.spa import spa_redirect
 
 
 def build_router() -> APIRouter:
     router = APIRouter()
-
-    @router.get("/account")
-    def account_page(user: User = Depends(current_user)) -> RedirectResponse:
-        _ = user
-        return spa_redirect("/account")
 
     @router.get("/account/export")
     def account_export(
