@@ -1,0 +1,8 @@
+{% extends "base.html" %}
+{% block title %}Privacy · vocab-coach{% endblock %}
+{% block content %}
+<h1>Privacy</h1>
+<p>{{ privacy_note }}</p>
+<p>Session cookies store only an internal user id. OIDC tokens are not kept in the browser.</p>
+<p>You can <a href="/account/export">export</a> or <a href="/account">delete</a> your data at any time.</p>
+{% endblock %}
