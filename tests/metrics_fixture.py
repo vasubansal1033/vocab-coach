@@ -32,6 +32,7 @@ from __future__ import annotations
 
 from datetime import UTC, datetime, timedelta
 
+from lexicon_fixture import seed_lexicon
 from sqlalchemy.orm import Session
 
 from vocab.auth.models import User
@@ -39,7 +40,6 @@ from vocab.conversation.models import Conversation, Message, MessageLemmaCount
 from vocab.drills.models import Drill, DrillAttempt
 from vocab.editor.models import EditorRun, Suggestion
 from vocab.events import Event
-from vocab.lexicon.service import load_seeds
 from vocab.llm.models import LlmCall
 
 ANCHOR = datetime(2026, 11, 10, 12, 0, 0, tzinfo=UTC)
@@ -50,7 +50,7 @@ WEEK_NEW = ANCHOR - timedelta(days=3)
 
 def seed_metrics_fixture(session: Session, user: User) -> dict[str, object]:
     """Insert the two-week corpus; return ids useful to tests."""
-    load_seeds(session)
+    seed_lexicon(session)
 
     conversation = Conversation(user_id=user.id, title="Metrics fixture")
     session.add(conversation)

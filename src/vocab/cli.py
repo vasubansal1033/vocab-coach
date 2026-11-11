@@ -29,11 +29,8 @@ def build_parser() -> argparse.ArgumentParser:
     ping.set_defaults(func=_cmd_llm_ping)
     llm.set_defaults(func=_cmd_llm_help)
 
-    lexicon = sub.add_parser("lexicon", help="Precision group seeds and drafts")
+    lexicon = sub.add_parser("lexicon", help="Lexicon drafts (import via API)")
     lexicon_sub = lexicon.add_subparsers(dest="lexicon_command", metavar="<lexicon-command>")
-    lexicon_sub.add_parser("load", help="Upsert YAML seeds as approved").set_defaults(
-        func=_cmd_lexicon_load
-    )
     draft = lexicon_sub.add_parser(
         "draft",
         help="Draft groups via group_gen, or --kind confusable/idiom",
@@ -57,9 +54,6 @@ def build_parser() -> argparse.ArgumentParser:
         help="Head lemma for --kind idiom",
     )
     draft.set_defaults(func=_cmd_lexicon_draft)
-    lexicon_sub.add_parser("export", help="Write approved groups back to YAML").set_defaults(
-        func=_cmd_lexicon_export
-    )
     lexicon.set_defaults(func=_cmd_lexicon_help)
 
     eval_parser = sub.add_parser("eval", help="Quality evals")
@@ -168,19 +162,13 @@ def _cli_session():  # noqa: ANN202
 
 def _cmd_lexicon_help(args: argparse.Namespace) -> int:
     if getattr(args, "lexicon_command", None) is None:
-        print("usage: vocab lexicon {load,draft,export}", file=sys.stderr)
+        print("usage: vocab lexicon draft ...", file=sys.stderr)
+        print(
+            "Import approved groups via POST /api/lexicon/import "
+            "or POST /api/lexicon/import/builtin (admin).",
+            file=sys.stderr,
+        )
         return 2
-    return 0
-
-
-def _cmd_lexicon_load(_args: argparse.Namespace) -> int:
-    from vocab.lexicon.service import counts, load_seeds
-
-    with _cli_session() as session:
-        result = load_seeds(session)
-        totals = counts(session)
-    print(f"upserted groups={result['groups']} options={result['options']}")
-    print(f"totals groups={totals['groups']} options={totals['options']}")
     return 0
 
 
@@ -191,14 +179,10 @@ def _cmd_lexicon_draft(args: argparse.Namespace) -> int:
         try:
             if args.kind:
                 words = (
-                    [w.strip() for w in args.words.split(",") if w.strip()]
-                    if args.words
-                    else None
+                    [w.strip() for w in args.words.split(",") if w.strip()] if args.words else None
                 )
                 lemma = args.lemma_flag or args.lemma
-                groups = asyncio.run(
-                    draft_set(session, args.kind, words=words, lemma=lemma)
-                )
+                groups = asyncio.run(draft_set(session, args.kind, words=words, lemma=lemma))
             else:
                 if not args.lemma:
                     print("usage: vocab lexicon draft <lemma>", file=sys.stderr)
@@ -210,16 +194,6 @@ def _cmd_lexicon_draft(args: argparse.Namespace) -> int:
     for group in groups:
         head = group.head_lemma or "-"
         print(f"draft {group.id} kind={group.kind} ({head}) options={len(group.options)}")
-    return 0
-
-
-def _cmd_lexicon_export(_args: argparse.Namespace) -> int:
-    from vocab.lexicon.service import export_approved
-
-    with _cli_session() as session:
-        paths = export_approved(session)
-    for path in paths:
-        print(path)
     return 0
 
 

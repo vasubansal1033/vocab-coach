@@ -42,7 +42,7 @@
 <section>
   <h2>Approved sets</h2>
   {% if not approved %}
-  <p>No approved sets. Run <code>uv run vocab lexicon load</code>.</p>
+  <p>No approved sets. Seed with <code>POST /api/lexicon/import/builtin</code> (admin).</p>
   {% endif %}
   {% for group in approved %}
   <article>

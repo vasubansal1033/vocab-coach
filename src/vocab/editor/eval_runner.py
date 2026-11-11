@@ -16,7 +16,7 @@ from sqlalchemy.orm import Session
 from vocab.config import Settings, get_settings
 from vocab.editor.schemas import EditorOutput
 from vocab.editor.service import build_editor_variables
-from vocab.lexicon.service import load_seeds
+from vocab.lexicon.ingest import import_builtin_catalog
 from vocab.llm.graphs import run_structured_role
 from vocab.nlp.analyzer import analyze
 
@@ -144,7 +144,7 @@ async def run_eval(
     if prompt_version is not None:
         settings = settings.model_copy(update={"llm_editor_prompt_version": prompt_version})
 
-    load_seeds(session)
+    import_builtin_catalog(session)
     cases = load_gold(gold_path)
     rows: list[dict[str, Any]] = []
     for case in cases:

@@ -7,6 +7,7 @@ from collections.abc import Callable
 
 import pytest
 from fastapi.testclient import TestClient
+from lexicon_fixture import seed_lexicon
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
@@ -17,7 +18,6 @@ from vocab.conversation.models import Message, MessageLemmaCount
 from vocab.conversation.service import create_conversation, post_user_message
 from vocab.db import get_session
 from vocab.events import Event
-from vocab.lexicon.service import load_seeds
 from vocab.llm.client import use_fake
 from vocab.llm.fake import FakeLLM
 from vocab.main import create_app
@@ -71,7 +71,7 @@ async def test_post_message_stores_lemma_counts(
 def test_feedback_accept_and_dismiss_events(
     session: Session, make_user: Callable[..., User]
 ) -> None:
-    load_seeds(session)
+    seed_lexicon(session)
     user = make_user()
     client = _app(session, user)
     conversation = create_conversation(session, user.id, "Topic")

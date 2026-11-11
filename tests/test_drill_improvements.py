@@ -9,6 +9,7 @@ from pathlib import Path
 
 import pytest
 import yaml
+from lexicon_fixture import seed_lexicon
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -25,7 +26,6 @@ from vocab.drills.service import (
     summarize_attempts,
 )
 from vocab.events import Event
-from vocab.lexicon.service import load_seeds
 from vocab.llm.client import use_fake
 from vocab.llm.fake import FakeLLM
 
@@ -39,7 +39,7 @@ def _clear_fake() -> None:
 
 @pytest.fixture
 def seeded(session: Session) -> None:
-    load_seeds(session)
+    seed_lexicon(session)
 
 
 DRILL_V2 = Settings(

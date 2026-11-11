@@ -9,12 +9,12 @@ from __future__ import annotations
 from pathlib import Path
 
 import pytest
+from lexicon_fixture import seed_lexicon
 from sqlalchemy.orm import Session
 
 from vocab.config import Settings
 from vocab.editor.eval_runner import GoldCase, load_gold
 from vocab.editor.schemas import EditorOutput
-from vocab.lexicon.service import load_seeds
 from vocab.llm.client import use_fake
 from vocab.llm.fake import FakeLLM
 from vocab.llm.graphs import run_structured_role
@@ -44,7 +44,7 @@ def _empty_editor_json() -> str:
 async def test_editor_prompt_v5_loads_and_fake_scores_match_v3(
     session: Session,
 ) -> None:
-    load_seeds(session)
+    seed_lexicon(session)
     cases = _non_idiom_cases()
     assert cases, "expected non-idiom gold cases"
 

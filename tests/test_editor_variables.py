@@ -5,11 +5,11 @@ from __future__ import annotations
 from collections.abc import Callable
 
 import pytest
+from lexicon_fixture import seed_lexicon
 from sqlalchemy.orm import Session
 
 from vocab.auth.models import User
 from vocab.editor.service import build_editor_variables
-from vocab.lexicon.service import load_seeds
 from vocab.nlp.analyzer import analyze
 
 
@@ -20,7 +20,7 @@ async def test_build_editor_variables_includes_hints(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     _ = make_user
-    load_seeds(session)
+    seed_lexicon(session)
 
     async def fake_hints(
         lemmas: list[tuple[str, str | None]],

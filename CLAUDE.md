@@ -19,7 +19,7 @@ uv run ruff check . && uv run ruff format --check .
 uv run alembic revision --autogenerate -m "<message>"
 uv run alembic upgrade head
 uv run vocab setup-nlp                  # spaCy model and WordNet data
-uv run vocab lexicon load               # load precision group seeds
+# Lexicon seed: POST /api/lexicon/import/builtin (admin)
 uv run vocab eval editor                # editor quality eval
 docker compose -f infra/authentik/compose.yml up -d   # authentik on http://localhost:9000
 ```
@@ -40,7 +40,7 @@ src/vocab/
   drills/        rewrite drill generation and grading
   metrics/       dashboard queries, MTLD
   web/templates/ web/static/vendor/
-data/precision_groups/*.yaml  data/crutch_words.yaml
+data/crutch_words.yaml
 evals/editor_gold.yaml  evals/results/
 infra/authentik/
 migrations/

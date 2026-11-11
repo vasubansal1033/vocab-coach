@@ -6,6 +6,7 @@ import json
 from collections.abc import Callable
 
 from fastapi.testclient import TestClient
+from lexicon_fixture import seed_lexicon
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
@@ -16,7 +17,6 @@ from vocab.conversation.service import create_conversation, post_user_message
 from vocab.db import get_session
 from vocab.editor.models import EditorRun, Suggestion
 from vocab.events import Event
-from vocab.lexicon.service import load_seeds
 from vocab.llm.client import use_fake
 from vocab.llm.fake import FakeLLM
 from vocab.main import create_app
@@ -40,7 +40,7 @@ def _app(session: Session, user: User) -> TestClient:
 def test_api_feedback_is_idempotent(
     session: Session, make_user: Callable[..., User]
 ) -> None:
-    load_seeds(session)
+    seed_lexicon(session)
     user = make_user()
     client = _app(session, user)
     conversation = create_conversation(session, user.id, "Topic")

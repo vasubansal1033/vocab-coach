@@ -1,10 +1,9 @@
-"""Precision groups: seeds, drafts, review queue, and admin actions."""
+"""Precision groups: drafts, review queue, and admin actions."""
 
+from vocab.lexicon.ingest import import_approved_items, import_builtin_catalog
 from vocab.lexicon.service import (
     approve_group,
     approved_groups_for_lemma,
-    export_approved,
-    load_seeds,
     reject_group,
     reject_review_item,
 )
@@ -12,8 +11,8 @@ from vocab.lexicon.service import (
 __all__ = [
     "approve_group",
     "approved_groups_for_lemma",
-    "export_approved",
-    "load_seeds",
+    "import_approved_items",
+    "import_builtin_catalog",
     "reject_group",
     "reject_review_item",
 ]

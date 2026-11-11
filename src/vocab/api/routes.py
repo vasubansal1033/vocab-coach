@@ -5,8 +5,9 @@ from __future__ import annotations
 import logging
 import re
 from datetime import UTC, datetime, timedelta
+from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, Depends, Header, HTTPException, Query, Request
 from fastapi.responses import JSONResponse
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session, selectinload
@@ -42,6 +43,13 @@ from vocab.api.schemas import (
     IdiomOptionOut,
     LemmaDetailOut,
     LemmaOptionOut,
+    LexiconBuiltinImportOut,
+    LexiconGroupListOut,
+    LexiconGroupOut,
+    LexiconImportOut,
+    LexiconOptionOut,
+    LexiconSubmitIn,
+    LexiconSubmitOut,
     MessageIn,
     MessageOut,
     MetricWeekOut,
@@ -99,7 +107,17 @@ from vocab.exercises.service import (
     list_compare_groups,
     list_idiom_groups,
 )
+from vocab.lexicon.admin import require_admin
+from vocab.lexicon.ingest import (
+    IdempotencyConflictError,
+    get_approved_group,
+    import_approved_batch,
+    import_builtin_catalog,
+    list_approved_groups,
+    submit_user_batch,
+)
 from vocab.lexicon.models import PrecisionGroup
+from vocab.lexicon.schemas import GroupKind, GroupSeed, LemmaSeedFile, OptionSeed
 from vocab.llm.models import LlmCall
 from vocab.metrics.queries import (
     acceptance_rate,
@@ -497,9 +515,7 @@ def build_router(settings: Settings | None = None) -> APIRouter:
                 RecapWordOut(word=w.word, option_id=w.option_id, source=w.source)
                 for w in recap.words_to_keep
             ],
-            crutch_words=[
-                RecapCrutchOut(lemma=c.lemma, count=c.count) for c in recap.crutch_words
-            ],
+            crutch_words=[RecapCrutchOut(lemma=c.lemma, count=c.count) for c in recap.crutch_words],
             rewrite_sentence=recap.rewrite_sentence,
         )
 
@@ -738,9 +754,7 @@ def build_router(settings: Settings | None = None) -> APIRouter:
         approved = [o for o in group.options if o.status == "approved"]
         if len(approved) < 2:
             return False
-        return all(
-            isinstance((o.details or {}).get("strength"), int) for o in approved
-        )
+        return all(isinstance((o.details or {}).get("strength"), int) for o in approved)
 
     def _compare_card_out(group: PrecisionGroup) -> CompareCardOut:
         options: list[CompareOptionOut] = []
@@ -917,11 +931,11 @@ def build_router(settings: Settings | None = None) -> APIRouter:
         rows: list[IdiomGroupListItemOut] = []
         for group in list_idiom_groups(session):
             approved = [o for o in group.options if o.status == "approved"]
-            tiers = {
-                str((o.details or {}).get("tier") or "everyday") for o in approved
-            }
-            tier = "literary" if tiers == {"literary"} else (
-                "mixed" if len(tiers) > 1 else next(iter(tiers), "everyday")
+            tiers = {str((o.details or {}).get("tier") or "everyday") for o in approved}
+            tier = (
+                "literary"
+                if tiers == {"literary"}
+                else ("mixed" if len(tiers) > 1 else next(iter(tiers), "everyday"))
             )
             rows.append(
                 IdiomGroupListItemOut(
@@ -1006,5 +1020,137 @@ def build_router(settings: Settings | None = None) -> APIRouter:
                 response=response,
             )
         return _attempt_out(attempt)
+
+    def _lexicon_group_out(group: PrecisionGroup) -> LexiconGroupOut:
+        return LexiconGroupOut(
+            id=group.id,
+            kind=group.kind,
+            head_lemma=group.head_lemma,
+            pos=group.pos,
+            sense_gloss=group.sense_gloss,
+            options=[
+                LexiconOptionOut(
+                    id=opt.id,
+                    word=opt.word,
+                    distinction=opt.distinction,
+                    example=opt.example,
+                    speech_register=opt.register,
+                    details=opt.details,
+                )
+                for opt in group.options
+            ],
+        )
+
+    @router.get("/lexicon/groups", response_model=LexiconGroupListOut)
+    def lexicon_groups(
+        user: User = Depends(current_user),
+        session: Session = Depends(get_session),
+        kind: Annotated[GroupKind | None, Query()] = None,
+        q: Annotated[str | None, Query()] = None,
+        cursor: Annotated[str | None, Query()] = None,
+        limit: Annotated[int, Query(ge=1, le=100)] = 20,
+    ) -> LexiconGroupListOut:
+        _ = user
+        groups, next_cursor = list_approved_groups(
+            session, kind=kind, q=q, cursor=cursor, limit=limit
+        )
+        return LexiconGroupListOut(
+            groups=[_lexicon_group_out(g) for g in groups],
+            next_cursor=next_cursor,
+        )
+
+    @router.get("/lexicon/groups/{group_id}", response_model=LexiconGroupOut)
+    def lexicon_group_detail(
+        group_id: str,
+        user: User = Depends(current_user),
+        session: Session = Depends(get_session),
+    ) -> LexiconGroupOut:
+        _ = user
+        group = get_approved_group(session, group_id)
+        if group is None:
+            raise HTTPException(status_code=404, detail="Not found")
+        return _lexicon_group_out(group)
+
+    def _parse_submit_items(body: LexiconSubmitIn) -> list[LemmaSeedFile]:
+        items: list[LemmaSeedFile] = []
+        for raw in body.items:
+            items.append(
+                LemmaSeedFile(
+                    kind=raw.kind,
+                    head_lemma=raw.head_lemma,
+                    groups=[
+                        GroupSeed(
+                            id=g.id,
+                            pos=g.pos,
+                            sense_gloss=g.sense_gloss,
+                            options=[
+                                OptionSeed(
+                                    word=o.word,
+                                    distinction=o.distinction,
+                                    example=o.example,
+                                    speech_register=o.speech_register,
+                                    details=o.details,
+                                )
+                                for o in g.options
+                            ],
+                        )
+                        for g in raw.groups
+                    ],
+                )
+            )
+        return items
+
+    @router.post("/lexicon/submissions", response_model=LexiconSubmitOut)
+    def lexicon_submit(
+        body: LexiconSubmitIn,
+        idempotency_key: Annotated[str, Header(alias="Idempotency-Key")],
+        user: User = Depends(current_user),
+        session: Session = Depends(get_session),
+    ) -> LexiconSubmitOut:
+        try:
+            result = submit_user_batch(
+                session,
+                user_id=user.id,
+                idempotency_key=idempotency_key,
+                items=_parse_submit_items(body),
+            )
+        except IdempotencyConflictError as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        return LexiconSubmitOut.model_validate(result)
+
+    @router.post("/lexicon/import", response_model=LexiconImportOut)
+    def lexicon_import(
+        body: LexiconSubmitIn,
+        idempotency_key: Annotated[str, Header(alias="Idempotency-Key")],
+        user: User = Depends(current_user),
+        session: Session = Depends(get_session),
+    ) -> LexiconImportOut:
+        """Admin-only: upsert JSON items as approved groups."""
+        require_admin(user, settings)
+        try:
+            result = import_approved_batch(
+                session,
+                user_id=user.id,
+                idempotency_key=idempotency_key,
+                items=_parse_submit_items(body),
+                source="api",
+            )
+        except IdempotencyConflictError as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        return LexiconImportOut.model_validate(result)
+
+    @router.post("/lexicon/import/builtin", response_model=LexiconBuiltinImportOut)
+    def lexicon_import_builtin(
+        user: User = Depends(current_user),
+        session: Session = Depends(get_session),
+    ) -> LexiconBuiltinImportOut:
+        """Admin-only: import the built-in Python catalog as approved."""
+        require_admin(user, settings)
+        counts = import_builtin_catalog(session, source="seed")
+        return LexiconBuiltinImportOut.model_validate(counts)
 
     return router

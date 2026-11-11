@@ -7,6 +7,7 @@ from collections.abc import Callable
 
 import pytest
 from fastapi.testclient import TestClient
+from lexicon_fixture import seed_lexicon
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -27,7 +28,6 @@ from vocab.exercises.schemas import (
     ComparePairResponse,
 )
 from vocab.exercises.service import answer_exercise, create_compare
-from vocab.lexicon.service import load_seeds
 from vocab.llm.client import use_fake
 from vocab.llm.fake import FakeLLM
 from vocab.practice.srs import ensure_card
@@ -42,7 +42,7 @@ def _clear_fake() -> None:
 
 @pytest.fixture
 def seeded(session: Session) -> None:
-    load_seeds(session)
+    seed_lexicon(session)
 
 
 COMPARE_SETTINGS = Settings(

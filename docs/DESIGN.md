@@ -72,7 +72,7 @@ flowchart LR
 | `auth` | OIDC login and logout, the `identities` mapping, the current-user dependency, and the `authorize()` function |
 | `llm` | The only place that calls LiteLLM. Maps roles (`partner`, `editor`, `usage_judge`, `drill_gen`, `drill_grade`, `group_gen`, `choice_gen`, `confusable_gen`, `idiom_gen`, `compare_gen`) to model strings, loads versioned prompts, validates structured output, and records every call in `llm_calls` |
 | `nlp` | Tokenises a message, counts lemmas, marks candidate vague words, and finds uses of learned words |
-| `lexicon` | Word sets (precision, confusable, idiom): loading YAML seeds, drafting with LLMs, and the review queue |
+| `lexicon` | Word sets (precision, confusable, idiom): API import/submit, drafting with LLMs, and the review queue |
 | `editor` | Turns one user message into at most two suggestions linked to precision groups |
 | `conversation` | Conversations, messages, the partner reply stream, and the chat pages |
 | `practice` | FSRS cards, due-word selection for the partner, and recording learned-word usage |
@@ -130,9 +130,10 @@ All IDs are UUIDv4 strings generated in Python. Every table holding a user's dat
 
 | Table | Columns | Notes |
 |---|---|---|
-| `precision_groups` | `id` (slug such as `fix.repair`, `confusable.imply-infer`, `idiom.agree`), `kind` (`precision`, `confusable` or `idiom`, default `precision`), `head_lemma` (nullable), `pos`, `sense_gloss`, `status` (`draft` or `approved`), `source` (`seed`, `llm`, `review`), `created_at` | Precision and idiom sets keep a head lemma; confusable sets leave it null |
+| `precision_groups` | `id` (slug such as `fix.repair`, `confusable.imply-infer`, `idiom.agree`), `kind` (`precision`, `confusable` or `idiom`, default `precision`), `head_lemma` (nullable), `pos`, `sense_gloss`, `status` (`draft` or `approved`), `source` (`seed`, `llm`, `review`, `user`), `created_at` | Precision and idiom sets keep a head lemma; confusable sets leave it null |
 | `precision_options` | `id`, `group_id`, `word`, `distinction`, `example`, `register` (`neutral`, `formal`, `technical`), `details` (JSON, nullable), `status` | `details` is validated by kind: empty for precision; confusable and idiom fields below |
 | `review_queue` | `id`, `editor_run_id`, `head_lemma`, `proposed_word`, `distinction`, `example`, `status` (`pending`, `approved`, `rejected`), `created_at` | Options the editor proposed that are not in the lexicon yet |
+| `lexicon_submissions` | `id`, `user_id`, `idempotency_key`, `request_hash`, `response` (JSON), `created_at` | Idempotent user batch ingest; unique on (`user_id`, `idempotency_key`) |
 
 #### Editor output
 
@@ -290,7 +291,7 @@ The partner holds a natural conversation. Its system prompt includes a topic or 
 
 The lexicon holds three kinds of word set in the same tables: precision groups (vague head lemma to precise options), confusable sets (near-synonyms with no vague head), and idiom sets (phrases grouped by the plain word they can replace). Queries that feed the editor or rewrite drills filter on `kind="precision"`. Idiom groups reach the editor only under the limits in "Idioms". Cards, usage detection and metrics keep working on `option_id` for every kind.
 
-Groups are seeded from YAML files in `data/precision_groups/`. A missing top-level `kind` means `precision`. Confusable files use ids such as `confusable.imply-infer` and leave `head_lemma` empty. Idiom files use ids such as `idiom.agree` and set `head_lemma` to the plain word.
+The lexicon is stored only in the database. Admins seed or update it through JSON APIs: `POST /api/lexicon/import` (batch upsert approved) and `POST /api/lexicon/import/builtin` (shipped catalog). Logged-in users submit drafts with `POST /api/lexicon/submissions`. Group ids look like `fix.repair`, `confusable.imply-infer`, and `idiom.agree`. Confusable sets leave `head_lemma` empty; precision and idiom sets set it.
 
 ```yaml
 head_lemma: fix
@@ -323,7 +324,11 @@ Option `details` by kind:
 - Confusable: `collocations` (list of strings), `connotation` (`positive`, `neutral`, `negative`), optional `strength` (integer when the set has a natural order).
 - Idiom: `meaning`, `tier` (`everyday` or `literary`), `region` (`common`, `uk`, `us`), `variants`, `misuse_example`, `avoid_when`, and for literary idioms a one-sentence `origin`. The option `word` holds the idiom in base form ("cut corners"); lemma matching covers inflected forms such as "cutting corners".
 
-The lexicon grows in three ways. `uv run vocab lexicon draft <lemma>` asks `group_gen` for precision drafts. `uv run vocab lexicon draft --kind confusable --words imply,infer` asks `confusable_gen`, and `--kind idiom --lemma agree` asks `idiom_gen`. Editor proposals with `option_id` null go into `review_queue`. An admin page lists drafts, approved sets (with kind and details) and queued proposals with approve, edit and reject actions. Approved precision groups are always given to the editor; idiom groups are added only under the limits in "Idioms".
+The runtime lexicon is the database. There is no YAML seed path.
+
+The lexicon grows in four ways. `uv run vocab lexicon draft <lemma>` asks `group_gen` for precision drafts. `uv run vocab lexicon draft --kind confusable --words imply,infer` asks `confusable_gen`, and `--kind idiom --lemma agree` asks `idiom_gen`. Editor proposals with `option_id` null go into `review_queue`. Logged-in users `POST /api/lexicon/submissions` with an `Idempotency-Key` to batch-submit sets they know as `status=draft` and `source=user` (existing ids are never overwritten; a `.user.<suffix>` id is minted). Admins approve via `/admin/lexicon` or upsert approved JSON with `POST /api/lexicon/import` / `POST /api/lexicon/import/builtin`. Replaying the same idempotency key with the same body returns the stored response; a different body returns 409. Approved precision groups are always given to the editor; idiom groups are added only under the limits in "Idioms".
+
+Any logged-in user can page the approved lexicon with `GET /api/lexicon/groups?kind=&q=&cursor=&limit=` and fetch one set with `GET /api/lexicon/groups/{id}`.
 
 WordNet is used for candidate senses and for checking that a proposed word exists with the right part of speech. It is not used as the source of suggestions, because its synonym lists are context-free: for "fix" they include "cook", "pickle" and "desex", and they do not include "resolve", "remedy", "rectify" or "mitigate" (checked against WordNet 3.0 through NLTK 3.10.4).
 

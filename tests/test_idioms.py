@@ -7,6 +7,7 @@ from collections.abc import Callable
 
 import pytest
 from fastapi.testclient import TestClient
+from lexicon_fixture import seed_lexicon
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -20,7 +21,6 @@ from vocab.exercises.grading import grade_idiom_select
 from vocab.exercises.schemas import IdiomSelectAnswer, IdiomSelectResponse, IdiomWriteResponse
 from vocab.exercises.service import answer_exercise, answer_idiom_write, create_idiom
 from vocab.lexicon.models import PrecisionGroup
-from vocab.lexicon.service import load_seeds
 from vocab.llm.client import use_fake
 from vocab.llm.fake import FakeLLM
 from vocab.nlp.analyzer import analyze
@@ -36,7 +36,7 @@ def _clear_fake() -> None:
 
 @pytest.fixture
 def seeded(session: Session) -> None:
-    load_seeds(session)
+    seed_lexicon(session)
 
 
 IDIOM_SETTINGS = Settings(

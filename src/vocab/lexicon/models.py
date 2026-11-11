@@ -34,7 +34,7 @@ class PrecisionGroup(Base):
     pos: Mapped[str] = mapped_column(String)
     sense_gloss: Mapped[str] = mapped_column(Text)
     status: Mapped[str] = mapped_column(String)  # draft | approved
-    source: Mapped[str] = mapped_column(String)  # seed | llm | review
+    source: Mapped[str] = mapped_column(String)  # seed | llm | review | user
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
     options: Mapped[list[PrecisionOption]] = relationship(
@@ -73,4 +73,17 @@ class ReviewQueueItem(Base):
     distinction: Mapped[str] = mapped_column(Text)
     example: Mapped[str] = mapped_column(Text)
     status: Mapped[str] = mapped_column(String, default="pending")  # pending|approved|rejected
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class LexiconSubmission(Base):
+    """Idempotent batch lexicon ingest from a logged-in user."""
+
+    __tablename__ = "lexicon_submissions"
+
+    id: Mapped[str] = mapped_column(String, primary_key=True, default=new_id)
+    user_id: Mapped[str] = mapped_column(ForeignKey("users.id"), index=True)
+    idempotency_key: Mapped[str] = mapped_column(String, index=True)
+    request_hash: Mapped[str] = mapped_column(String)
+    response: Mapped[dict[str, Any]] = mapped_column(JSON)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)

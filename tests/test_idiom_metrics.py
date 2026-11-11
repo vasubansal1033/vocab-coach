@@ -5,19 +5,19 @@ from __future__ import annotations
 from collections.abc import Callable
 from datetime import UTC, datetime, timedelta
 
+from lexicon_fixture import seed_lexicon
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from vocab.auth.models import User
 from vocab.events import Event, WordUsedPayload, record_event
-from vocab.lexicon.service import load_seeds
 from vocab.metrics.queries import idiom_misuse_rate, misuse_rate
 
 
 def test_misuse_rate_excludes_idioms(
     session: Session, make_user: Callable[..., User]
 ) -> None:
-    load_seeds(session)
+    seed_lexicon(session)
     user = make_user()
     start = datetime(2026, 1, 1, tzinfo=UTC)
     end = start + timedelta(days=7)

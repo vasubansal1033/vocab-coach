@@ -7,6 +7,7 @@ from collections.abc import Callable
 
 import pytest
 from fastapi.testclient import TestClient
+from lexicon_fixture import seed_lexicon
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
@@ -29,7 +30,6 @@ from vocab.events import (
     SuggestionShownPayload,
     record_event,
 )
-from vocab.lexicon.service import load_seeds
 from vocab.llm.client import use_fake
 from vocab.llm.fake import FakeLLM
 from vocab.main import create_app
@@ -148,7 +148,7 @@ def test_create_conversation_stores_flow_and_idioms(
 async def test_retry_accepts_once_and_prompted_use(
     session: Session, make_user: Callable[..., User]
 ) -> None:
-    load_seeds(session)
+    seed_lexicon(session)
     user = make_user()
     conversation = create_conversation(session, user.id, "Retry")
     message = post_user_message(
@@ -217,7 +217,7 @@ async def test_retry_accepts_once_and_prompted_use(
 async def test_conversation_recap_parts(
     session: Session, make_user: Callable[..., User]
 ) -> None:
-    load_seeds(session)
+    seed_lexicon(session)
     user = make_user()
     conversation = create_conversation(session, user.id, "Recap seed")
     msg1 = post_user_message(
@@ -309,7 +309,7 @@ async def test_conversation_recap_parts(
 async def test_flow_mode_defers_editor_until_recap(
     session: Session, make_user: Callable[..., User]
 ) -> None:
-    load_seeds(session)
+    seed_lexicon(session)
     user = make_user()
     client = _app(session, user)
     conversation = create_conversation(
@@ -389,7 +389,7 @@ async def test_flow_mode_defers_editor_until_recap(
 
 
 def test_api_retry_endpoint(session: Session, make_user: Callable[..., User]) -> None:
-    load_seeds(session)
+    seed_lexicon(session)
     user = make_user()
     client = _app(session, user)
     conversation = create_conversation(session, user.id, "API retry")

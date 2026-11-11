@@ -1,11 +1,9 @@
-"""Load, draft, export, and review precision groups."""
+"""Draft, review, and query precision groups (DB is the source of truth)."""
 
 from __future__ import annotations
 
-from pathlib import Path
-from typing import Any, Literal
+from typing import Literal
 
-import yaml
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session, selectinload
 
@@ -16,13 +14,10 @@ from vocab.lexicon.schemas import (
     GroupKind,
     GroupSeed,
     IdiomGenOutput,
-    LemmaSeedFile,
     OptionSeed,
     validate_details,
 )
 from vocab.lexicon.wordnet import senses_for_lemma
-
-SEEDS_DIR = Path(__file__).resolve().parents[3] / "data" / "precision_groups"
 
 
 def option_id(group_id: str, word: str) -> str:
@@ -95,36 +90,8 @@ def _upsert_option(
         existing.details = opt.details
 
 
-def load_seeds(session: Session, *, seeds_dir: Path | None = None) -> dict[str, int]:
-    """Upsert YAML seeds as approved; safe to rerun."""
-    directory = seeds_dir or SEEDS_DIR
-    group_count = 0
-    option_count = 0
-    for path in sorted(directory.glob("*.yaml")):
-        raw = yaml.safe_load(path.read_text(encoding="utf-8"))
-        seed = LemmaSeedFile.model_validate(raw)
-        for group_data in seed.groups:
-            _upsert_group(
-                session,
-                group_id=group_data.id,
-                kind=seed.kind,
-                head_lemma=seed.head_lemma,
-                pos=group_data.pos,
-                sense_gloss=group_data.sense_gloss,
-                status="approved",
-                source="seed",
-            )
-            group_count += 1
-            for opt in group_data.options:
-                _upsert_option(session, group_id=group_data.id, opt=opt, status="approved")
-                option_count += 1
-
-    session.commit()
-    return {"groups": group_count, "options": option_count}
-
-
 def counts(session: Session) -> dict[str, int]:
-    """Row counts for idempotency checks."""
+    """Row counts for checks after import."""
     return {
         "groups": session.scalar(select(func.count()).select_from(PrecisionGroup)) or 0,
         "options": session.scalar(select(func.count()).select_from(PrecisionOption)) or 0,
@@ -151,95 +118,6 @@ def approved_groups_for_lemma(
     for group in groups:
         group.options = [o for o in group.options if o.status == "approved"]
     return groups
-
-
-def _option_payload(opt: PrecisionOption) -> dict[str, Any]:
-    payload: dict[str, Any] = {
-        "word": opt.word,
-        "distinction": opt.distinction,
-        "example": opt.example,
-        "register": opt.register,
-    }
-    if opt.details:
-        payload["details"] = opt.details
-    return payload
-
-
-def _group_export_payload(group: PrecisionGroup) -> dict[str, Any]:
-    options = [
-        _option_payload(opt)
-        for opt in sorted(group.options, key=lambda o: o.id)
-        if opt.status == "approved"
-    ]
-    return {
-        "id": group.id,
-        "pos": group.pos,
-        "sense_gloss": group.sense_gloss,
-        "options": options,
-    }
-
-
-def export_approved(session: Session, *, seeds_dir: Path | None = None) -> list[Path]:
-    """Write approved groups back to YAML, preserving kind and details."""
-    directory = seeds_dir or SEEDS_DIR
-    directory.mkdir(parents=True, exist_ok=True)
-    stmt = (
-        select(PrecisionGroup)
-        .where(PrecisionGroup.status == "approved")
-        .options(selectinload(PrecisionGroup.options))
-    )
-    precision_by_lemma: dict[str, list[PrecisionGroup]] = {}
-    idiom_by_lemma: dict[str, list[PrecisionGroup]] = {}
-    confusable: list[PrecisionGroup] = []
-    for group in session.scalars(stmt):
-        if group.kind == "confusable":
-            confusable.append(group)
-        elif group.kind == "idiom":
-            key = group.head_lemma or group.id
-            idiom_by_lemma.setdefault(key, []).append(group)
-        else:
-            key = group.head_lemma or group.id
-            precision_by_lemma.setdefault(key, []).append(group)
-
-    written: list[Path] = []
-    for lemma, groups in sorted(precision_by_lemma.items()):
-        payload: dict[str, Any] = {
-            "head_lemma": lemma,
-            "groups": [_group_export_payload(g) for g in sorted(groups, key=lambda g: g.id)],
-        }
-        path = directory / f"{lemma}.yaml"
-        path.write_text(
-            yaml.safe_dump(payload, sort_keys=False, allow_unicode=True),
-            encoding="utf-8",
-        )
-        written.append(path)
-
-    for lemma, groups in sorted(idiom_by_lemma.items()):
-        payload = {
-            "kind": "idiom",
-            "head_lemma": lemma,
-            "groups": [_group_export_payload(g) for g in sorted(groups, key=lambda g: g.id)],
-        }
-        path = directory / f"idiom.{lemma}.yaml"
-        path.write_text(
-            yaml.safe_dump(payload, sort_keys=False, allow_unicode=True),
-            encoding="utf-8",
-        )
-        written.append(path)
-
-    for group in sorted(confusable, key=lambda g: g.id):
-        payload = {
-            "kind": "confusable",
-            "groups": [_group_export_payload(group)],
-        }
-        path = directory / f"{group.id}.yaml"
-        path.write_text(
-            yaml.safe_dump(payload, sort_keys=False, allow_unicode=True),
-            encoding="utf-8",
-        )
-        written.append(path)
-
-    return written
 
 
 def _store_draft_groups(

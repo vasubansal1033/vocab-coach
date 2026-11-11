@@ -6,6 +6,7 @@ import json
 from collections.abc import Callable
 
 import pytest
+from lexicon_fixture import seed_lexicon
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -15,7 +16,6 @@ from vocab.conversation.service import create_conversation, post_user_message
 from vocab.editor.service import analyze_message
 from vocab.events import Event
 from vocab.lexicon.models import ReviewQueueItem
-from vocab.lexicon.service import load_seeds
 from vocab.llm.client import use_fake
 from vocab.llm.fake import FakeLLM
 
@@ -54,7 +54,7 @@ async def test_analyze_message_anchors_and_records(
     make_user: Callable[..., User],
     settings: Settings,
 ) -> None:
-    load_seeds(session)
+    seed_lexicon(session)
     user = make_user()
     conversation = create_conversation(session, user.id, "Migration")
     text = (
@@ -127,7 +127,7 @@ async def test_unknown_option_goes_to_review_queue(
     make_user: Callable[..., User],
     settings: Settings,
 ) -> None:
-    load_seeds(session)
+    seed_lexicon(session)
     user = make_user()
     conversation = create_conversation(session, user.id, "Bug")
     text = "We need to fix the bug."

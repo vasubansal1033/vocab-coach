@@ -14,6 +14,7 @@ ALTER TABLE exercise_attempts ENABLE ROW LEVEL SECURITY;
 ALTER TABLE srs_cards ENABLE ROW LEVEL SECURITY;
 ALTER TABLE events ENABLE ROW LEVEL SECURITY;
 ALTER TABLE llm_calls ENABLE ROW LEVEL SECURITY;
+ALTER TABLE lexicon_submissions ENABLE ROW LEVEL SECURITY;
 ALTER TABLE identities ENABLE ROW LEVEL SECURITY;
 
 CREATE POLICY conversations_owner ON conversations
@@ -40,6 +41,8 @@ CREATE POLICY events_owner ON events
   USING (user_id = current_setting('app.current_user_id', true));
 CREATE POLICY llm_calls_owner ON llm_calls
   USING (user_id IS NULL OR user_id = current_setting('app.current_user_id', true));
+CREATE POLICY lexicon_submissions_owner ON lexicon_submissions
+  USING (user_id = current_setting('app.current_user_id', true));
 CREATE POLICY identities_owner ON identities
   USING (user_id = current_setting('app.current_user_id', true));
 

@@ -5,11 +5,11 @@ from __future__ import annotations
 from collections.abc import Callable
 
 from fastapi.testclient import TestClient
+from lexicon_fixture import seed_lexicon
 from metrics_fixture import seed_metrics_fixture
 from sqlalchemy.orm import Session
 
 from vocab.auth.models import User
-from vocab.lexicon.service import load_seeds
 
 
 def test_api_me_and_dashboard(
@@ -39,7 +39,7 @@ def test_api_create_conversation(
     make_user: Callable[..., User],
     login_as: Callable[[User], None],
 ) -> None:
-    load_seeds(session)
+    seed_lexicon(session)
     user = make_user()
     login_as(user)
     created = client.post(
@@ -82,7 +82,7 @@ def test_api_delete_conversation_with_editor_rows(
     from vocab.editor.models import EditorRun, Suggestion, SuggestionOption
     from vocab.lexicon.models import ReviewQueueItem
 
-    load_seeds(session)
+    seed_lexicon(session)
     user = make_user()
     login_as(user)
     conversation = create_conversation(session, user.id, "Delete me")

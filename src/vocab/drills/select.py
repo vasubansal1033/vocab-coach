@@ -58,7 +58,9 @@ def select_group(session: Session, user_id: str) -> PrecisionGroup:
     """Prefer due-card groups, then overuse heads, then random approved."""
     groups = _approved_groups(session)
     if not groups:
-        raise RuntimeError("no approved precision groups; run vocab lexicon load")
+        raise RuntimeError(
+            "no approved precision groups; POST /api/lexicon/import/builtin as admin"
+        )
 
     by_id = {g.id: g for g in groups}
     by_lemma: defaultdict[str, list[PrecisionGroup]] = defaultdict(list)

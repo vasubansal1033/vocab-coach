@@ -13,7 +13,7 @@ from vocab.drills.models import Drill, DrillAttempt
 from vocab.editor.models import EditorRun, Suggestion, SuggestionOption
 from vocab.events import Event
 from vocab.exercises.models import Exercise, ExerciseAttempt
-from vocab.lexicon.models import ReviewQueueItem
+from vocab.lexicon.models import LexiconSubmission, ReviewQueueItem
 from vocab.llm.models import LlmCall
 from vocab.practice.models import SrsCard
 
@@ -126,6 +126,18 @@ def export_user(session: Session, user_id: str) -> dict[str, Any]:
             }
             for c in session.scalars(select(LlmCall).where(LlmCall.user_id == user_id))
         ],
+        "lexicon_submissions": [
+            {
+                "id": row.id,
+                "idempotency_key": row.idempotency_key,
+                "request_hash": row.request_hash,
+                "response": row.response,
+                "created_at": row.created_at.isoformat() if row.created_at else None,
+            }
+            for row in session.scalars(
+                select(LexiconSubmission).where(LexiconSubmission.user_id == user_id)
+            )
+        ],
     }
 
 
@@ -163,6 +175,9 @@ def delete_user(session: Session, user_id: str) -> None:
     session.execute(delete(SrsCard).where(SrsCard.user_id == user_id))
     session.execute(delete(Event).where(Event.user_id == user_id))
     session.execute(delete(LlmCall).where(LlmCall.user_id == user_id))
+    session.execute(
+        delete(LexiconSubmission).where(LexiconSubmission.user_id == user_id)
+    )
     session.execute(delete(Identity).where(Identity.user_id == user_id))
     session.execute(delete(User).where(User.id == user_id))
     session.commit()

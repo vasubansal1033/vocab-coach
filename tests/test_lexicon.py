@@ -6,6 +6,7 @@ from collections.abc import Callable
 
 import pytest
 from fastapi.testclient import TestClient
+from lexicon_fixture import seed_lexicon
 from pydantic import ValidationError
 from sqlalchemy.orm import Session
 
@@ -20,17 +21,16 @@ from vocab.lexicon.service import (
     approve_group,
     approved_groups_for_lemma,
     counts,
-    load_seeds,
 )
 from vocab.main import create_app
 from vocab.nlp.analyzer import analyze
 from vocab.nlp.types import CandidateSpan
 
 
-def test_load_seeds_twice_same_counts(session: Session) -> None:
-    first = load_seeds(session)
+def test_import_builtin_twice_same_counts(session: Session) -> None:
+    first = seed_lexicon(session)
     mid = counts(session)
-    second = load_seeds(session)
+    second = seed_lexicon(session)
     end = counts(session)
     assert first["groups"] == second["groups"]
     assert first["options"] == second["options"]
@@ -39,8 +39,8 @@ def test_load_seeds_twice_same_counts(session: Session) -> None:
     assert end["options"] >= 30
 
 
-def test_load_seeds_includes_confusable_and_idiom(session: Session) -> None:
-    load_seeds(session)
+def test_import_builtin_includes_confusable_and_idiom(session: Session) -> None:
+    seed_lexicon(session)
     confusable = session.get(PrecisionGroup, "confusable.imply-infer")
     idiom = session.get(PrecisionGroup, "idiom.agree")
     assert confusable is not None
@@ -61,7 +61,7 @@ def test_load_seeds_includes_confusable_and_idiom(session: Session) -> None:
 
 
 def test_approved_groups_for_lemma_defaults_to_precision(session: Session) -> None:
-    load_seeds(session)
+    seed_lexicon(session)
     precision_only = approved_groups_for_lemma(session, "agree")
     assert all(g.kind == "precision" for g in precision_only)
     assert not any(g.id == "idiom.agree" for g in precision_only)
@@ -73,7 +73,7 @@ def test_approved_groups_for_lemma_defaults_to_precision(session: Session) -> No
 @pytest.mark.asyncio
 async def test_editor_variables_exclude_idiom_groups(session: Session) -> None:
     """Without allow_idioms, a message with 'agree' must not feed idiom groups."""
-    load_seeds(session)
+    seed_lexicon(session)
     message = "We agree on the timeline."
     analysis = analyze(message)
     # Force agree as a candidate so head-lemma lookup runs (it is not a crutch).
@@ -178,7 +178,7 @@ def test_admin_lexicon_requires_admin_user(
     app.dependency_overrides[current_user] = lambda: other
     assert client.get("/admin/lexicon").status_code == 404
 
-    load_seeds(session)
+    seed_lexicon(session)
     app.dependency_overrides[current_user] = lambda: admin
     response = client.get("/admin/lexicon")
     assert response.status_code == 200

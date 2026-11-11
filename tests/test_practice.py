@@ -6,6 +6,7 @@ from collections.abc import Callable
 from datetime import UTC, datetime, timedelta
 
 import pytest
+from lexicon_fixture import seed_lexicon
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -19,7 +20,6 @@ from vocab.conversation.service import (
 )
 from vocab.editor.models import EditorRun, Suggestion, SuggestionOption
 from vocab.events import Event
-from vocab.lexicon.service import load_seeds
 from vocab.llm.client import use_fake
 from vocab.llm.fake import FakeLLM
 from vocab.practice.models import SrsCard
@@ -43,7 +43,7 @@ def _clear_fake() -> None:
 
 @pytest.fixture
 def seeded(session: Session) -> None:
-    load_seeds(session)
+    seed_lexicon(session)
 
 
 def _accept_resolve(session: Session, user: User) -> str:

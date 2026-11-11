@@ -5,6 +5,7 @@ from __future__ import annotations
 from collections.abc import Callable
 
 from fastapi.testclient import TestClient
+from lexicon_fixture import seed_lexicon
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -12,7 +13,6 @@ from vocab.auth.models import Identity, User
 from vocab.conversation.models import Conversation
 from vocab.events import Event
 from vocab.exercises.models import Exercise, ExerciseAttempt
-from vocab.lexicon.service import load_seeds
 
 
 def test_export_and_delete(
@@ -21,7 +21,7 @@ def test_export_and_delete(
     make_user: Callable[..., User],
     login_as: Callable[[User], None],
 ) -> None:
-    load_seeds(session)
+    seed_lexicon(session)
     user = make_user("Ada")
     session.add(Identity(user_id=user.id, issuer="https://idp.example/", subject="sub-1"))
     session.add(Conversation(user_id=user.id, title="Ship review"))

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Any, Literal
 
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 
 class UserOut(BaseModel):
@@ -254,9 +254,7 @@ class ExerciseCreateCompareIn(BaseModel):
 
 class ExerciseCreateIdiomIn(BaseModel):
     group_id: str = Field(min_length=1)
-    item_type: Literal[
-        "idiom_recognise", "idiom_meaning", "idiom_situation", "idiom_write"
-    ]
+    item_type: Literal["idiom_recognise", "idiom_meaning", "idiom_situation", "idiom_write"]
     option_id: str | None = None
 
 
@@ -337,3 +335,79 @@ class AccountOut(BaseModel):
     user: UserOut
     limits: AccountLimitsOut
     privacy_note: str
+
+
+class LexiconOptionOut(BaseModel):
+    id: str
+    word: str
+    distinction: str
+    example: str
+    speech_register: str = Field(serialization_alias="register")
+    details: dict[str, Any] | None = None
+
+
+class LexiconGroupOut(BaseModel):
+    id: str
+    kind: str
+    head_lemma: str | None
+    pos: str
+    sense_gloss: str
+    options: list[LexiconOptionOut]
+
+
+class LexiconGroupListOut(BaseModel):
+    groups: list[LexiconGroupOut]
+    next_cursor: str | None = None
+
+
+class LexiconOptionIn(BaseModel):
+    model_config = ConfigDict(populate_by_name=True)
+
+    word: str
+    distinction: str
+    example: str
+    speech_register: Literal["neutral", "formal", "technical"] = Field(
+        default="neutral", alias="register"
+    )
+    details: dict[str, Any] | None = None
+
+
+class LexiconGroupIn(BaseModel):
+    id: str
+    pos: str
+    sense_gloss: str
+    options: list[LexiconOptionIn] = Field(min_length=1)
+
+
+class LexiconSubmitItemIn(BaseModel):
+    kind: Literal["precision", "confusable", "idiom"] = "precision"
+    head_lemma: str | None = None
+    groups: list[LexiconGroupIn] = Field(min_length=1)
+
+
+class LexiconSubmitIn(BaseModel):
+    items: list[LexiconSubmitItemIn] = Field(min_length=1, max_length=20)
+
+
+class LexiconSubmitCreatedOut(BaseModel):
+    requested_id: str
+    stored_id: str
+    status: str
+
+
+class LexiconSubmitOut(BaseModel):
+    idempotency_key: str
+    created: list[LexiconSubmitCreatedOut]
+    count: int
+
+
+class LexiconImportOut(BaseModel):
+    idempotency_key: str
+    mode: str
+    groups: int
+    options: int
+
+
+class LexiconBuiltinImportOut(BaseModel):
+    groups: int
+    options: int

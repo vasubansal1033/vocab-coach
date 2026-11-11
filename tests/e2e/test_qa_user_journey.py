@@ -9,13 +9,13 @@ from pathlib import Path
 
 import pytest
 from fastapi.testclient import TestClient
+from lexicon_fixture import seed_lexicon
 from sqlalchemy.orm import Session
 
 from vocab.auth.deps import current_user
 from vocab.auth.models import User
 from vocab.config import Settings
 from vocab.db import get_session
-from vocab.lexicon.service import load_seeds
 from vocab.llm.client import use_fake
 from vocab.llm.fake import FakeLLM
 from vocab.main import create_app
@@ -116,7 +116,7 @@ def test_qa_signed_in_user_journey(
     make_user: Callable[..., User],
 ) -> None:
     """Walk the SPA API surface as one user; write evals/qa/latest-report.json."""
-    load_seeds(session)
+    seed_lexicon(session)
     user = make_user("QA Learner")
     client = _qa_client(session, user)
     headers = {"accept": "application/json"}

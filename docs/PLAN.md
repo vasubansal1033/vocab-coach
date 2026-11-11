@@ -151,15 +151,15 @@ Approved precision groups in the database, a way to draft more with an LLM, and 
 #### Tasks
 
 - [x] Models and migration for `precision_groups`, `precision_options` and `review_queue`.
-- [x] Write seed files in `data/precision_groups/` for at least ten head lemmas from the crutch list, in the format shown in "Precision groups". Review them yourself; these are the quality baseline.
-- [x] `uv run vocab lexicon load` upserts YAML seeds as `approved`, keyed by group and option IDs, so rerunning is safe.
+- [x] Builtin catalog (`vocab.lexicon.builtin_catalog`) with at least ten head lemmas from the crutch list as the quality baseline (formerly YAML under `data/precision_groups/`).
+- [x] Admin APIs upsert seeds as `approved` (`POST /api/lexicon/import`, `POST /api/lexicon/import/builtin`), keyed by group and option IDs, so rerunning is safe.
 - [x] `prompts/group_gen.v1.md` and `uv run vocab lexicon draft <lemma>`: gives the LLM the WordNet senses for the lemma and asks for groups in the seed format, saved as `draft`.
 - [x] `/admin/lexicon` page (restricted to an admin user ID from settings): lists drafts and review-queue items with approve, edit and reject.
-- [x] `uv run vocab lexicon export` writes approved groups back to YAML, so the lexicon stays reviewable in git.
+- [x] Approved lexicon is DB-only; no YAML export path (review via admin UI / API).
 
 #### Done when
 
-- `vocab lexicon load` twice in a row leaves the same row counts.
+- Builtin import twice in a row leaves the same row counts.
 - `vocab lexicon draft fix` produces a `fix.repair` draft whose options you would mostly approve.
 - Approving a draft makes it visible to a query for approved groups by lemma.
 
@@ -501,7 +501,7 @@ The lexicon can hold confusable sets and idioms as well as precision groups, wit
 #### Decisions already made
 
 - Extend `precision_groups` and `precision_options`; do not rename them or add parallel tables. See "Word sets: one lexicon for all modes" in the design for the columns and the `details` fields.
-- Seed files stay in `data/precision_groups/`. A missing `kind` means `precision`. Group ID conventions: `confusable.<word>-<word>` (for example `confusable.imply-infer`) and `idiom.<head_lemma>` (for example `idiom.agree`). Option IDs keep using `lexicon/service.py` `option_id()`.
+- Lexicon seeds live in `vocab.lexicon.builtin_catalog` and load via `POST /api/lexicon/import/builtin` (or JSON `POST /api/lexicon/import`). A missing `kind` means `precision`. Group ID conventions: `confusable.<word>-<word>` (for example `confusable.imply-infer`) and `idiom.<head_lemma>` (for example `idiom.agree`). Option IDs keep using `lexicon/service.py` `option_id()`.
 - Multi-word matching already works: `nlp/usage.py` `find_learned_words()` uses a spaCy `PhraseMatcher` on `LEMMA`. Add tests; change the code only if a test fails.
 - Drafting uses two new roles, `confusable_gen` and `idiom_gen`, instead of a new `group_gen` version, so existing precision drafting does not change.
 
@@ -510,8 +510,7 @@ The lexicon can hold confusable sets and idioms as well as precision groups, wit
 - `src/vocab/lexicon/models.py` and a migration (`render_as_batch` is already on, which SQLite needs to make `head_lemma` nullable).
 - `src/vocab/lexicon/schemas.py`: `ConfusableDetails`, `IdiomDetails`, and validation of `details` by kind for seeds and drafts.
 - `src/vocab/lexicon/service.py`:
-  - `load_seeds()` reads `kind` and `details`.
-  - `export_approved()` writes them back.
+  - Import paths (`import_approved_items` / builtin catalog) read `kind` and `details`.
   - `approved_groups_for_lemma()` gains a `kinds` parameter that defaults to `("precision",)`.
   - New `draft_set()` for the two new kinds.
 - `src/vocab/drills/select.py` `_approved_groups()`: filter `kind="precision"`. Check every other query on `PrecisionGroup` in `src/vocab/` (`grep -rn PrecisionGroup src/vocab`) and decide per query whether it needs the filter. `metrics/queries.py` `_groups_for_head()` does.
@@ -526,13 +525,13 @@ The lexicon can hold confusable sets and idioms as well as precision groups, wit
 - [x] `details` Pydantic models and loader validation.
 - [x] `kind` filters on editor, drill and metric queries.
 - [x] Matching tests: "We were cutting corners on testing" matches `cut corners`, and "They saw eye to eye on scope" matches `see eye to eye`.
-- [x] One seed file per new kind, used by tests: `confusable.imply-infer.yaml` and `idiom.agree.yaml` (two idioms such as "on the same page" and "see eye to eye").
+- [x] Builtin catalog includes one set per new kind for tests: `confusable.imply-infer` and `idiom.agree` (two idioms such as "on the same page" and "see eye to eye").
 - [x] Two new drafting roles and the CLI options.
 
 #### Done when
 
 - All existing tests pass with no changes to `practice/srs.py`, `practice/usage.py` or the metric functions, apart from the `kind` filter.
-- `uv run vocab lexicon load` loads both new seed files, and the admin page shows them.
+- `POST /api/lexicon/import/builtin` loads confusable and idiom sets, and the admin page shows them.
 - The editor's input for a message containing "agree" contains no idiom groups (the editor only gets idioms after the Idioms section).
 - `uv run pytest` and `uv run ruff check .` pass.
 
@@ -559,7 +558,7 @@ The user can see how near-synonyms differ and practise telling them apart.
 
 #### Files to change
 
-- `data/precision_groups/`: at least ten reviewed confusable sets drafted with `confusable_gen`: imply and infer, persuade and convince, continual and continuous, sceptical and cynical, affect and impact, assure and ensure, comprise and compose, fewer and less, principal and principle, and annoyed, irritated, exasperated and livid (with `strength`).
+- Builtin catalog / admin import: at least ten reviewed confusable sets drafted with `confusable_gen`: imply and infer, persuade and convince, continual and continuous, sceptical and cynical, affect and impact, assure and ensure, comprise and compose, fewer and less, principal and principle, and annoyed, irritated, exasperated and livid (with `strength`).
 - `src/vocab/exercises/`: compare schemas, `create_compare()`, and grading functions per item type.
 - `src/vocab/llm/roles.py`, `src/vocab/config.py`, `.env.example`, `src/vocab/prompts/compare_gen.v1.md`.
 - `src/vocab/api/routes.py` and `src/vocab/api/schemas.py`:
@@ -608,7 +607,7 @@ The user learns everyday idioms for workplace writing in steps, from recognition
 
 #### Files to change
 
-- `data/precision_groups/`: about thirty reviewed everyday idioms in `idiom.<head_lemma>` groups, drafted with `idiom_gen`. None of them has a pronoun slot.
+- Builtin catalog / admin import: about thirty reviewed everyday idioms in `idiom.<head_lemma>` groups, drafted with `idiom_gen`. None of them has a pronoun slot.
 - `src/vocab/exercises/`: idiom item schemas and grading.
 - `src/vocab/prompts/compare_gen.v2.md` and `src/vocab/prompts/editor.v5.md` (do not overwrite `editor.v4.md`).
 - `src/vocab/editor/service.py` `analyze_message()`: add idiom groups under the rule above.
