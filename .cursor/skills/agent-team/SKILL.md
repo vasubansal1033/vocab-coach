@@ -39,3 +39,4 @@ uv run pytest tests/e2e/test_qa_user_journey.py -q
 - FakeLLM for unit/e2e without `RUN_LLM_TESTS=1`
 - One PLAN-sized change set at a time when building product features
 - Caveman OK in chat; code/commits normal prose
+- For style/DRY cleanup after a feature batch, run `.cursor/skills/staff-review-refactor/SKILL.md`
