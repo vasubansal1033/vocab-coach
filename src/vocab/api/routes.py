@@ -28,6 +28,13 @@ from vocab.api.schemas import (
     DrillOut,
     DrillSummaryOut,
     DrillWeekOut,
+    ExerciseAttemptIn,
+    ExerciseAttemptOut,
+    ExerciseFeedbackCandidateOut,
+    ExerciseFeedbackOut,
+    ExerciseOut,
+    ExercisePromptCandidateOut,
+    ExercisePromptOut,
     FeedbackOut,
     LemmaDetailOut,
     LemmaOptionOut,
@@ -68,6 +75,9 @@ from vocab.drills.service import (
     summarize_attempts,
 )
 from vocab.editor.models import Suggestion, SuggestionOption
+from vocab.exercises.models import Exercise, ExerciseAttempt
+from vocab.exercises.schemas import ChoiceResponse
+from vocab.exercises.service import answer_exercise, create_choice
 from vocab.llm.models import LlmCall
 from vocab.metrics.queries import (
     acceptance_rate,
@@ -683,5 +693,90 @@ def build_router(settings: Settings | None = None) -> APIRouter:
             grade=grade,
             hints_used=attempt.hints_used,
         )
+
+    def _exercise_out(exercise: Exercise) -> ExerciseOut:
+        prompt = exercise.prompt if isinstance(exercise.prompt, dict) else {}
+        candidates = [
+            ExercisePromptCandidateOut(
+                option_id=str(c.get("option_id", "")),
+                word=str(c.get("word", "")),
+            )
+            for c in prompt.get("candidates", [])
+            if isinstance(c, dict)
+        ]
+        return ExerciseOut(
+            id=exercise.id,
+            item_type=exercise.item_type,
+            prompt=ExercisePromptOut(
+                situation=str(prompt.get("situation", "")),
+                sentence=str(prompt.get("sentence", "")),
+                candidates=candidates,
+            ),
+        )
+
+    def _attempt_out(attempt: ExerciseAttempt) -> ExerciseAttemptOut:
+        feedback = attempt.feedback if isinstance(attempt.feedback, dict) else {}
+        candidates = [
+            ExerciseFeedbackCandidateOut(
+                option_id=str(c.get("option_id", "")),
+                fit=str(c.get("fit", "")),
+                reason=str(c.get("reason", "")),
+                best=bool(c.get("best")),
+                user_marked=bool(c.get("user_marked")),
+            )
+            for c in feedback.get("candidates", [])
+            if isinstance(c, dict)
+        ]
+        return ExerciseAttemptOut(
+            id=attempt.id,
+            correct=bool(attempt.correct),
+            feedback=ExerciseFeedbackOut(
+                best_option_id=str(feedback.get("best_option_id", "")),
+                user_best_option_id=str(feedback.get("user_best_option_id", "")),
+                candidates=candidates,
+            ),
+        )
+
+    @router.post("/exercises/choice", response_model=ExerciseOut)
+    async def exercises_choice_create(
+        user: User = Depends(current_user),
+        session: Session = Depends(get_session),
+    ) -> ExerciseOut:
+        exercise = await create_choice(session, user_id=user.id, settings=settings)
+        return _exercise_out(exercise)
+
+    @router.get("/exercises/{exercise_id}", response_model=ExerciseOut)
+    def exercises_get(
+        exercise_id: str,
+        user: User = Depends(current_user),
+        session: Session = Depends(get_session),
+    ) -> ExerciseOut:
+        exercise = session.get(Exercise, exercise_id)
+        if exercise is None:
+            raise HTTPException(status_code=404, detail="Not found")
+        authorize(user.id, "read", exercise)
+        return _exercise_out(exercise)
+
+    @router.post("/exercises/{exercise_id}/attempt", response_model=ExerciseAttemptOut)
+    def exercises_attempt(
+        exercise_id: str,
+        body: ExerciseAttemptIn,
+        user: User = Depends(current_user),
+        session: Session = Depends(get_session),
+    ) -> ExerciseAttemptOut:
+        exercise = session.get(Exercise, exercise_id)
+        if exercise is None:
+            raise HTTPException(status_code=404, detail="Not found")
+        authorize(user.id, "update", exercise)
+        attempt = answer_exercise(
+            session,
+            exercise=exercise,
+            user_id=user.id,
+            response=ChoiceResponse(
+                best_option_id=body.best_option_id,
+                marked_option_ids=body.marked_option_ids,
+            ),
+        )
+        return _attempt_out(attempt)
 
     return router

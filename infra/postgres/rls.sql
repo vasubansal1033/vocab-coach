@@ -9,6 +9,8 @@ ALTER TABLE editor_runs ENABLE ROW LEVEL SECURITY;
 ALTER TABLE suggestions ENABLE ROW LEVEL SECURITY;
 ALTER TABLE drills ENABLE ROW LEVEL SECURITY;
 ALTER TABLE drill_attempts ENABLE ROW LEVEL SECURITY;
+ALTER TABLE exercises ENABLE ROW LEVEL SECURITY;
+ALTER TABLE exercise_attempts ENABLE ROW LEVEL SECURITY;
 ALTER TABLE srs_cards ENABLE ROW LEVEL SECURITY;
 ALTER TABLE events ENABLE ROW LEVEL SECURITY;
 ALTER TABLE llm_calls ENABLE ROW LEVEL SECURITY;
@@ -27,6 +29,10 @@ CREATE POLICY suggestions_owner ON suggestions
 CREATE POLICY drills_owner ON drills
   USING (user_id = current_setting('app.current_user_id', true));
 CREATE POLICY drill_attempts_owner ON drill_attempts
+  USING (user_id = current_setting('app.current_user_id', true));
+CREATE POLICY exercises_owner ON exercises
+  USING (user_id = current_setting('app.current_user_id', true));
+CREATE POLICY exercise_attempts_owner ON exercise_attempts
   USING (user_id = current_setting('app.current_user_id', true));
 CREATE POLICY srs_cards_owner ON srs_cards
   USING (user_id = current_setting('app.current_user_id', true));

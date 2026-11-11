@@ -12,6 +12,7 @@ from vocab.conversation.models import Conversation, Message, MessageLemmaCount
 from vocab.drills.models import Drill, DrillAttempt
 from vocab.editor.models import EditorRun, Suggestion, SuggestionOption
 from vocab.events import Event
+from vocab.exercises.models import Exercise, ExerciseAttempt
 from vocab.lexicon.models import ReviewQueueItem
 from vocab.llm.models import LlmCall
 from vocab.practice.models import SrsCard
@@ -89,6 +90,30 @@ def export_user(session: Session, user_id: str) -> dict[str, Any]:
             }
             for d in session.scalars(select(Drill).where(Drill.user_id == user_id))
         ],
+        "exercises": [
+            {
+                "id": e.id,
+                "group_id": e.group_id,
+                "item_type": e.item_type,
+                "prompt": e.prompt,
+                "answer": e.answer,
+                "created_at": e.created_at.isoformat() if e.created_at else None,
+            }
+            for e in session.scalars(select(Exercise).where(Exercise.user_id == user_id))
+        ],
+        "exercise_attempts": [
+            {
+                "id": a.id,
+                "exercise_id": a.exercise_id,
+                "response": a.response,
+                "correct": a.correct,
+                "feedback": a.feedback,
+                "created_at": a.created_at.isoformat() if a.created_at else None,
+            }
+            for a in session.scalars(
+                select(ExerciseAttempt).where(ExerciseAttempt.user_id == user_id)
+            )
+        ],
         "llm_calls": [
             {
                 "id": c.id,
@@ -133,6 +158,8 @@ def delete_user(session: Session, user_id: str) -> None:
     session.execute(delete(Conversation).where(Conversation.user_id == user_id))
     session.execute(delete(DrillAttempt).where(DrillAttempt.user_id == user_id))
     session.execute(delete(Drill).where(Drill.user_id == user_id))
+    session.execute(delete(ExerciseAttempt).where(ExerciseAttempt.user_id == user_id))
+    session.execute(delete(Exercise).where(Exercise.user_id == user_id))
     session.execute(delete(SrsCard).where(SrsCard.user_id == user_id))
     session.execute(delete(Event).where(Event.user_id == user_id))
     session.execute(delete(LlmCall).where(LlmCall.user_id == user_id))

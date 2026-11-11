@@ -218,4 +218,48 @@ export const api = {
       words_practised: string[]
       total_hints_used: number
     }>(`/api/drills/summary?attempt_ids=${encodeURIComponent(attemptIds.join(','))}`),
+  createChoiceExercise: () =>
+    request<{
+      id: string
+      item_type: string
+      prompt: {
+        situation: string
+        sentence: string
+        candidates: { option_id: string; word: string }[]
+      }
+    }>('/api/exercises/choice', {
+      method: 'POST',
+    }),
+  getExercise: (exerciseId: string) =>
+    request<{
+      id: string
+      item_type: string
+      prompt: {
+        situation: string
+        sentence: string
+        candidates: { option_id: string; word: string }[]
+      }
+    }>(`/api/exercises/${exerciseId}`),
+  answerExercise: (exerciseId: string, bestOptionId: string, markedOptionIds: string[]) =>
+    request<{
+      id: string
+      correct: boolean
+      feedback: {
+        best_option_id: string
+        user_best_option_id: string
+        candidates: {
+          option_id: string
+          fit: string
+          reason: string
+          best: boolean
+          user_marked: boolean
+        }[]
+      }
+    }>(`/api/exercises/${exerciseId}/attempt`, {
+      method: 'POST',
+      body: JSON.stringify({
+        best_option_id: bestOptionId,
+        marked_option_ids: markedOptionIds,
+      }),
+    }),
 }

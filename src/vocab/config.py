@@ -31,6 +31,9 @@ class Settings(BaseSettings):
     llm_drill_gen_model: str = ""
     llm_drill_grade_model: str = ""
     llm_group_gen_model: str = ""
+    llm_choice_gen_model: str = ""
+    llm_confusable_gen_model: str = ""
+    llm_idiom_gen_model: str = ""
     ollama_api_base: str = "http://localhost:11434"
 
     llm_partner_prompt_version: int = 1
@@ -39,6 +42,9 @@ class Settings(BaseSettings):
     llm_drill_gen_prompt_version: int = 2
     llm_drill_grade_prompt_version: int = 1
     llm_group_gen_prompt_version: int = 1
+    llm_choice_gen_prompt_version: int = 1
+    llm_confusable_gen_prompt_version: int = 1
+    llm_idiom_gen_prompt_version: int = 1
 
     editor_max_suggestions: int = 3
     # Empty means nobody is admin until set; /admin/lexicon returns 404.

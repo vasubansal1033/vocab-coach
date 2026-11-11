@@ -11,6 +11,8 @@ from sqlalchemy.orm import Session
 from vocab.auth.models import Identity, User
 from vocab.conversation.models import Conversation
 from vocab.events import Event
+from vocab.exercises.models import Exercise, ExerciseAttempt
+from vocab.lexicon.service import load_seeds
 
 
 def test_export_and_delete(
@@ -19,6 +21,7 @@ def test_export_and_delete(
     make_user: Callable[..., User],
     login_as: Callable[[User], None],
 ) -> None:
+    load_seeds(session)
     user = make_user("Ada")
     session.add(Identity(user_id=user.id, issuer="https://idp.example/", subject="sub-1"))
     session.add(Conversation(user_id=user.id, title="Ship review"))
@@ -31,6 +34,38 @@ def test_export_and_delete(
             payload={},
         )
     )
+    exercise = Exercise(
+        user_id=user.id,
+        group_id="fix.repair",
+        item_type="choice",
+        prompt={
+            "situation": "A flaky job fails overnight.",
+            "sentence": "We need to ___ it before Friday.",
+            "candidates": [{"option_id": "fix.repair/resolve", "word": "resolve"}],
+        },
+        answer={
+            "best_option_id": "fix.repair/resolve",
+            "candidates": [
+                {
+                    "option_id": "fix.repair/resolve",
+                    "fit": "fits",
+                    "reason": "Removes the cause.",
+                    "best": True,
+                }
+            ],
+        },
+    )
+    session.add(exercise)
+    session.flush()
+    session.add(
+        ExerciseAttempt(
+            exercise_id=exercise.id,
+            user_id=user.id,
+            response={"best_option_id": "fix.repair/resolve", "marked_option_ids": []},
+            correct=True,
+            feedback={"best_option_id": "fix.repair/resolve", "candidates": []},
+        )
+    )
     session.commit()
     login_as(user)
 
@@ -40,6 +75,8 @@ def test_export_and_delete(
     assert body["user"]["id"] == user.id
     assert len(body["conversations"]) == 1
     assert len(body["events"]) == 1
+    assert len(body["exercises"]) == 1
+    assert len(body["exercise_attempts"]) == 1
 
     deleted = client.post("/account/delete", follow_redirects=False)
     assert deleted.status_code == 303
@@ -47,3 +84,8 @@ def test_export_and_delete(
     left = session.scalars(select(Conversation).where(Conversation.user_id == user.id)).first()
     assert left is None
     assert session.scalars(select(Identity).where(Identity.user_id == user.id)).first() is None
+    assert session.scalars(select(Exercise).where(Exercise.user_id == user.id)).first() is None
+    assert (
+        session.scalars(select(ExerciseAttempt).where(ExerciseAttempt.user_id == user.id)).first()
+        is None
+    )

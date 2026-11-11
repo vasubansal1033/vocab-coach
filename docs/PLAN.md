@@ -470,10 +470,10 @@ A fast recognition exercise built on the existing precision groups. This section
 
 #### Tasks
 
-- [ ] `choice_gen` role, prompt and output schema: a `situation` (one sentence), a `sentence` with one `___`, and four to six `candidates`, each with `option_id`, `fit` (`fits`, `partly`, `wrong`), `reason` (one line) and `best` (boolean).
-- [ ] Tables, migration, account export and delete, RLS.
-- [ ] `grade_choice()` and the attempt endpoint; record `exercise_answered`; review the card on a correct best pick.
-- [ ] "Choose the word" tab.
+- [x] `choice_gen` role, prompt and output schema: a `situation` (one sentence), a `sentence` with one `___`, and four to six `candidates`, each with `option_id`, `fit` (`fits`, `partly`, `wrong`), `reason` (one line) and `best` (boolean).
+- [x] Tables, migration, account export and delete, RLS.
+- [x] `grade_choice()` and the attempt endpoint; record `exercise_answered`; review the card on a correct best pick.
+- [x] "Choose the word" tab.
 
 #### Done when
 
@@ -522,12 +522,12 @@ The lexicon can hold confusable sets and idioms as well as precision groups, wit
 
 #### Tasks
 
-- [ ] Migration and models.
-- [ ] `details` Pydantic models and loader validation.
-- [ ] `kind` filters on editor, drill and metric queries.
-- [ ] Matching tests: "We were cutting corners on testing" matches `cut corners`, and "They saw eye to eye on scope" matches `see eye to eye`.
-- [ ] One seed file per new kind, used by tests: `confusable.imply-infer.yaml` and `idiom.agree.yaml` (two idioms such as "on the same page" and "see eye to eye").
-- [ ] Two new drafting roles and the CLI options.
+- [x] Migration and models.
+- [x] `details` Pydantic models and loader validation.
+- [x] `kind` filters on editor, drill and metric queries.
+- [x] Matching tests: "We were cutting corners on testing" matches `cut corners`, and "They saw eye to eye on scope" matches `see eye to eye`.
+- [x] One seed file per new kind, used by tests: `confusable.imply-infer.yaml` and `idiom.agree.yaml` (two idioms such as "on the same page" and "see eye to eye").
+- [x] Two new drafting roles and the CLI options.
 
 #### Done when
 

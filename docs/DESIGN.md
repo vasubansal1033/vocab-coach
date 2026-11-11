@@ -4,12 +4,13 @@ vocab-coach is a writing coach. It helps a person replace vague, general English
 
 The target user is a non-native English speaker who works in English and wants to write with more precise and richer vocabulary: emails, chat messages, status updates, reviews and documents. This user usually knows many words passively but falls back on a small set of safe ones when writing. The app therefore focuses on moving words from recognition into active use, and on the fine distinctions between near-synonyms that non-native writers find hardest. Spoken practice (voice input, pronunciation, timed replies) is out of scope for now, because typed text gives the user time to think, so it measures written vocabulary and not spoken fluency.
 
-It has two practice modes today:
+It has three practice modes today:
 
 - **Conversation.** The user chats with an AI partner. After each user reply, an editor model reviews the reply and suggests at most two more precise word choices, explaining how each option changes the meaning.
 - **Rewrite drills.** The app generates a short context plus a vague sentence that targets one word group, the user rewrites it with optional hints, and a grader model scores the rewrite against a fixed rubric. Drills run in sets of five with a server-side summary; disputed grades are recorded as events and exported by CLI.
+- **Choose the word.** A recognition exercise: a short situation, a sentence with one blank, and candidates from one precision group. The user marks every candidate that fits and picks the best one. Grading compares against a stored answer, with no grading LLM call.
 
-Three more practice modes are planned and described in "Planned practice modes": choosing the word that fits a sentence, comparing near-synonyms, and idioms.
+Two more practice modes are planned and described in "Planned practice modes": comparing near-synonyms, and idioms.
 
 Accepted suggestions become spaced-repetition cards. The partner steers later conversations towards topics where due words fit, so the user practises them in their own sentences. A dashboard shows which words the user overuses and whether learned words are showing up unprompted in later replies.
 
@@ -69,13 +70,14 @@ flowchart LR
 | Module | Responsibility |
 |---|---|
 | `auth` | OIDC login and logout, the `identities` mapping, the current-user dependency, and the `authorize()` function |
-| `llm` | The only place that calls LiteLLM. Maps roles (`partner`, `editor`, `usage_judge`, `drill_gen`, `drill_grade`, `group_gen`) to model strings, loads versioned prompts, validates structured output, and records every call in `llm_calls` |
+| `llm` | The only place that calls LiteLLM. Maps roles (`partner`, `editor`, `usage_judge`, `drill_gen`, `drill_grade`, `group_gen`, `choice_gen`, `confusable_gen`, `idiom_gen`) to model strings, loads versioned prompts, validates structured output, and records every call in `llm_calls` |
 | `nlp` | Tokenises a message, counts lemmas, marks candidate vague words, and finds uses of learned words |
-| `lexicon` | Precision groups: loading the YAML seed files, generating drafts with an LLM, and the review queue |
+| `lexicon` | Word sets (precision, confusable, idiom): loading YAML seeds, drafting with LLMs, and the review queue |
 | `editor` | Turns one user message into at most two suggestions linked to precision groups |
 | `conversation` | Conversations, messages, the partner reply stream, and the chat pages |
 | `practice` | FSRS cards, due-word selection for the partner, and recording learned-word usage |
 | `drills` | Generating and grading rewrite drills |
+| `exercises` | Shared recognition items (choose the word now; compare and idioms later) |
 | `metrics` | Dashboard queries and calculations |
 | `events` | Typed event definitions and a single `record_event()` function |
 
@@ -128,8 +130,8 @@ All IDs are UUIDv4 strings generated in Python. Every table holding a user's dat
 
 | Table | Columns | Notes |
 |---|---|---|
-| `precision_groups` | `id` (slug such as `fix.repair`), `head_lemma`, `pos`, `sense_gloss`, `status` (`draft` or `approved`), `source` (`seed`, `llm`, `review`), `created_at` | One vague word in one sense |
-| `precision_options` | `id`, `group_id`, `word`, `distinction`, `example`, `register` (`neutral`, `formal`, `technical`), `status` | One precise alternative with what it adds |
+| `precision_groups` | `id` (slug such as `fix.repair`, `confusable.imply-infer`, `idiom.agree`), `kind` (`precision`, `confusable` or `idiom`, default `precision`), `head_lemma` (nullable), `pos`, `sense_gloss`, `status` (`draft` or `approved`), `source` (`seed`, `llm`, `review`), `created_at` | Precision and idiom sets keep a head lemma; confusable sets leave it null |
+| `precision_options` | `id`, `group_id`, `word`, `distinction`, `example`, `register` (`neutral`, `formal`, `technical`), `details` (JSON, nullable), `status` | `details` is validated by kind: empty for precision; confusable and idiom fields below |
 | `review_queue` | `id`, `editor_run_id`, `head_lemma`, `proposed_word`, `distinction`, `example`, `status` (`pending`, `approved`, `rejected`), `created_at` | Options the editor proposed that are not in the lexicon yet |
 
 #### Editor output
@@ -147,6 +149,8 @@ All IDs are UUIDv4 strings generated in Python. Every table holding a user's dat
 | `srs_cards` | `id`, `user_id`, `option_id`, `fsrs_card` (JSON from `Card.to_dict()`), `due_at`, `created_at` | Unique on `(user_id, option_id)`. `due_at` is copied out of the JSON so it can be indexed |
 | `drills` | `id`, `user_id`, `group_id`, `vague_sentence`, `context` (nullable), `intended_option_id`, `intended_word`, `llm_call_id`, `created_at` | Intended option comes from `drill_gen`. `context` is set by prompt v2 and null for older drills |
 | `drill_attempts` | `id`, `drill_id`, `user_id`, `answer`, `grade` (JSON), `score`, `hints_used` (default 0), `llm_call_id`, `created_at` | Hints do not change the score; they are shown with the grade |
+| `exercises` | `id`, `user_id`, `group_id`, `item_type`, `prompt` (JSON), `answer` (JSON), `llm_call_id`, `created_at` | Shared by choose the word, compare and idiom steps. `item_type` starts with `choice`. `prompt` is what the user sees; `answer` is never sent before the attempt |
+| `exercise_attempts` | `id`, `exercise_id`, `user_id`, `response` (JSON), `correct`, `feedback` (JSON), `created_at` | `correct` comes from a pure grading function per `item_type` |
 
 #### Events and LLM calls
 
@@ -164,9 +168,10 @@ Event types and their payloads are defined as Pydantic models in `events.py`:
 | `suggestion_dismissed` | suggestion | none |
 | `suggestion_retried` | suggestion | `option_id` (nullable), `word` |
 | `word_used` | message | `option_id`, `correct`, `prompted`, `judge_call_id` |
-| `card_reviewed` | srs card | `rating`, `source` (`conversation`, `drill`, `review_page`), `option_id` |
+| `card_reviewed` | srs card | `rating`, `source` (`conversation`, `drill`, `review_page`, `exercise`), `option_id` |
 | `drill_graded` | drill attempt | `score`, `rubric` scores |
 | `drill_disputed` | drill attempt | `note` (nullable) |
+| `exercise_answered` | exercise attempt | `item_type`, `correct`, `option_id` (nullable, the option the item tested) |
 
 Metrics are computed from `events`, `messages` and `message_lemma_counts`. The `srs_cards` table holds current scheduler state for fast lookup, and it can be rebuilt by replaying `card_reviewed` events.
 
@@ -199,7 +204,7 @@ Copy `.env.example` to `.env`, set the key for the provider you use, and uncomme
 
 #### Structured output
 
-Roles that return JSON (`editor`, `usage_judge`, `drill_gen`, `drill_grade`, `group_gen`) define a Pydantic model for the output. The client decides how to request it:
+Roles that return JSON (`editor`, `usage_judge`, `drill_gen`, `drill_grade`, `group_gen`, `choice_gen`, `confusable_gen`, `idiom_gen`) define a Pydantic model for the output. The client decides how to request it:
 
 - If `litellm.supports_response_schema(model=..., custom_llm_provider=...)` returns true, pass the Pydantic class as `response_format`.
 - Otherwise pass `response_format={"type": "json_object"}` and put the JSON schema in the prompt.
@@ -283,7 +288,9 @@ The partner holds a natural conversation. Its system prompt includes a topic or 
 
 ## Precision groups
 
-Groups are seeded from YAML files in `data/precision_groups/`, one file per head lemma:
+The lexicon holds three kinds of word set in the same tables: precision groups (vague head lemma to precise options), confusable sets (near-synonyms with no vague head), and idiom sets (phrases grouped by the plain word they can replace). Queries that feed the editor or rewrite drills filter on `kind="precision"`. Idiom groups reach the editor only under the limits in "Idioms" (not built yet). Cards, usage detection and metrics keep working on `option_id` for every kind.
+
+Groups are seeded from YAML files in `data/precision_groups/`. A missing top-level `kind` means `precision`. Confusable files use ids such as `confusable.imply-infer` and leave `head_lemma` empty. Idiom files use ids such as `idiom.agree` and set `head_lemma` to the plain word.
 
 ```yaml
 head_lemma: fix
@@ -310,7 +317,13 @@ groups:
         register: neutral
 ```
 
-The lexicon grows in two ways. A command (`uv run vocab lexicon draft <lemma>`) asks the `group_gen` role for draft groups, using WordNet senses for the lemma as input, and writes them with `status=draft` for review. Editor proposals with `option_id` null go into `review_queue`. An admin page lists drafts and queued proposals with approve, edit and reject actions. Only approved groups are given to the editor.
+Option `details` by kind:
+
+- Precision: leave empty.
+- Confusable: `collocations` (list of strings), `connotation` (`positive`, `neutral`, `negative`), optional `strength` (integer when the set has a natural order).
+- Idiom: `meaning`, `tier` (`everyday` or `literary`), `region` (`common`, `uk`, `us`), `variants`, `misuse_example`, `avoid_when`, and for literary idioms a one-sentence `origin`. The option `word` holds the idiom in base form ("cut corners"); lemma matching covers inflected forms such as "cutting corners".
+
+The lexicon grows in three ways. `uv run vocab lexicon draft <lemma>` asks `group_gen` for precision drafts. `uv run vocab lexicon draft --kind confusable --words imply,infer` asks `confusable_gen`, and `--kind idiom --lemma agree` asks `idiom_gen`. Editor proposals with `option_id` null go into `review_queue`. An admin page lists drafts, approved sets (with kind and details) and queued proposals with approve, edit and reject actions. Only approved precision groups are given to the editor today.
 
 WordNet is used for candidate senses and for checking that a proposed word exists with the right part of speech. It is not used as the source of suggestions, because its synonym lists are context-free: for "fix" they include "cook", "pickle" and "desex", and they do not include "resolve", "remedy", "rectify" or "mitigate" (checked against WordNet 3.0 through NLTK 3.10.4).
 
@@ -320,25 +333,9 @@ Free Dictionary API (`dictionaryapi.dev`) and Datamuse (`api.datamuse.com`) supp
 
 This section describes features that are planned in `docs/PLAN.md` but not built yet. They all reuse the lexicon, the FSRS cards and the event log, so a word learned in any mode is reviewed and measured in the same way.
 
-#### Word sets: one lexicon for all modes
-
-Today every precision group belongs to one vague head lemma. Two of the planned modes need sets that do not fit that shape. Confusable pairs such as imply and infer, or continual and continuous, have no vague head word. Idioms are phrases grouped by meaning ("on the same page", "see eye to eye" for agreement) and need fields that single words do not have.
-
-The plan is to extend the existing tables instead of adding parallel ones, so that `srs_cards`, `word_used`, the usage judge and every metric keep working on `option_id` without changes:
-
-- `precision_groups` gains `kind` (`precision`, `confusable` or `idiom`, default `precision`).
-- `head_lemma` becomes nullable. Confusable sets leave it null. Idiom groups keep it and set it to the plain word the idioms can replace (the group `idiom.agree` has `head_lemma: agree`), because that is how the editor finds candidate groups for a word in the user's message.
-- `precision_options` gains `details` (JSON), validated by a Pydantic model chosen by the group's kind. Precision options leave it empty. Confusable options store `collocations` (list of strings), `connotation` (`positive`, `neutral`, `negative`) and an optional `strength` (integer, only set when the set has a natural order such as annoyed, irritated, exasperated, livid). Idiom options store `meaning`, `tier` (`everyday` or `literary`), `region` (`common`, `uk`, `us`), `variants`, `misuse_example`, `avoid_when` and, for literary idioms, a one-sentence `origin`.
-- For idioms, `word` holds the idiom in its base form ("cut corners"). Learned-word matching already compares lemmas, so "cutting corners" in a message matches it. Idioms with a pronoun slot ("pull one's weight") would not match, so the first seed set leaves them out.
-- YAML seed files stay in `data/precision_groups/`. A file may set a top-level `kind`; when it is missing the kind is `precision`, so the ten existing files need no change. The loader validates `details` with the same Pydantic models.
-
-Every query that feeds the editor or rewrite drills filters on `kind`. The editor receives `precision` groups as before, plus `idiom` groups only under the limits in "Idioms", so its behaviour and its eval results do not change when confusable sets are loaded.
-
 #### Choose the word
 
-The user sees a short situation, a sentence with one blank, and four to six candidate words from one group. They mark every candidate that fits and then pick the best one. The feedback explains each candidate in one line: why it fits, why it only partly fits, or why it is wrong. A new `choice_gen` role writes the item, including which candidates fit and a short reason for each, so grading is a comparison against stored answers and needs no grading LLM call.
-
-This is a recognition exercise. It is easier and faster than a free rewrite, so it suits words the user has just met. A correct best pick for a carded option reviews that card with `Good`, the same way a correct drill rewrite does.
+Built. The user sees a short situation, a sentence with one blank, and four to six candidate words from one group. They mark every candidate that fits and then pick the best one. The feedback explains each candidate in one line: why it fits, why it only partly fits, or why it is wrong. The `choice_gen` role writes the item, including which candidates fit and a short reason for each, so grading is a comparison against stored answers and needs no grading LLM call. Items live in the shared `exercises` tables with `item_type="choice"`. A correct best pick for a carded option reviews that card with `Good` and source `exercise`.
 
 #### Compare
 
@@ -366,29 +363,11 @@ Idiom content is drafted by an `idiom_gen` role and reviewed in the admin page, 
 
 #### Planned tables, events and roles
 
-Choose the word, Compare and the first three idiom steps are all short exercises with a stored answer, so they share two tables instead of each getting its own:
+The shared `exercises` / `exercise_attempts` tables, `exercise_answered`, `card_reviewed.source=exercise` and the `choice_gen` role are built (see "Data model" and "Choose the word"). Compare and the first three idiom steps add more `item_type` values on those tables.
 
-| Table | Columns | Notes |
-|---|---|---|
-| `exercises` | `id`, `user_id`, `group_id`, `item_type`, `prompt` (JSON), `answer` (JSON), `llm_call_id`, `created_at` | `item_type` is one of `choice`, `compare_pair`, `compare_misuse`, `compare_order`, `idiom_recognise`, `idiom_meaning`, `idiom_situation`. `prompt` is what the user sees; `answer` is never sent to the browser before the attempt |
-| `exercise_attempts` | `id`, `exercise_id`, `user_id`, `response` (JSON), `correct`, `feedback` (JSON), `created_at` | `correct` is computed by a pure grading function per `item_type` |
+Lexicon `kind` / nullable `head_lemma` / option `details`, plus `confusable_gen` and `idiom_gen`, are built (see "Data model" and "Precision groups").
 
-Other schema changes:
-
-| Table | Change | Section |
-|---|---|---|
-| `precision_groups` | `kind`, nullable `head_lemma` | Word sets |
-| `precision_options` | `details` (JSON, nullable) | Word sets |
-
-New event types, each with a Pydantic payload in `events.py`:
-
-| Event type | Subject | Payload |
-|---|---|---|
-| `exercise_answered` | exercise attempt | `item_type`, `correct`, `option_id` (nullable, the option the item tested) |
-
-`card_reviewed.source` gains the value `exercise`.
-
-New LLM roles: `choice_gen`, `compare_gen`, `confusable_gen` and `idiom_gen`. Each needs a model setting and a prompt version setting like the existing roles.
+New LLM roles still planned: `compare_gen`. It needs a model setting and a prompt version setting like the existing roles.
 
 ## Practice and spaced repetition
 
@@ -398,6 +377,7 @@ Each accepted option becomes an FSRS card for that user. Ratings come from real 
 |---|---|
 | The user used the word unprompted and the judge marked it correct | `Good` |
 | The user used the word correctly in a drill | `Good` |
+| The user picked the correct best option in a choose-the-word exercise | `Good` |
 | The judge marked a use incorrect | `Again` |
 | The user rated a card on the review page | The rating they chose |
 

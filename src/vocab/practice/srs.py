@@ -13,7 +13,7 @@ from vocab.events import CardReviewedPayload, Event, record_event
 from vocab.lexicon.models import PrecisionOption
 from vocab.practice.models import SrsCard, utcnow
 
-Source = Literal["conversation", "drill", "review_page"]
+Source = Literal["conversation", "drill", "review_page", "exercise"]
 
 _RATING_MAP = {
     "Again": Rating.Again,

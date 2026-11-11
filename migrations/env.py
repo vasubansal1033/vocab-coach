@@ -12,6 +12,7 @@ from vocab.conversation import models as _conversation_models  # noqa: F401  reg
 from vocab.db import Base, make_engine
 from vocab.drills import models as _drills_models  # noqa: F401  registers tables
 from vocab.editor import models as _editor_models  # noqa: F401  registers tables
+from vocab.exercises import models as _exercises_models  # noqa: F401  registers tables
 from vocab.lexicon import models as _lexicon_models  # noqa: F401  registers tables
 from vocab.llm import models as _llm_models  # noqa: F401  registers tables
 from vocab.practice import models as _practice_models  # noqa: F401  registers tables

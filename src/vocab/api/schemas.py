@@ -225,6 +225,50 @@ class DrillSummaryOut(BaseModel):
     total_hints_used: int
 
 
+class ExercisePromptCandidateOut(BaseModel):
+    option_id: str
+    word: str
+
+
+class ExercisePromptOut(BaseModel):
+    situation: str
+    sentence: str
+    candidates: list[ExercisePromptCandidateOut]
+
+
+class ExerciseOut(BaseModel):
+    """Prompt only; never includes the stored answer."""
+
+    id: str
+    item_type: str
+    prompt: ExercisePromptOut
+
+
+class ExerciseAttemptIn(BaseModel):
+    best_option_id: str = Field(min_length=1)
+    marked_option_ids: list[str] = Field(default_factory=list)
+
+
+class ExerciseFeedbackCandidateOut(BaseModel):
+    option_id: str
+    fit: str
+    reason: str
+    best: bool
+    user_marked: bool
+
+
+class ExerciseFeedbackOut(BaseModel):
+    best_option_id: str
+    user_best_option_id: str
+    candidates: list[ExerciseFeedbackCandidateOut]
+
+
+class ExerciseAttemptOut(BaseModel):
+    id: str
+    correct: bool
+    feedback: ExerciseFeedbackOut
+
+
 class AccountLimitsOut(BaseModel):
     llm_calls_24h: int
     llm_call_limit_per_day: int

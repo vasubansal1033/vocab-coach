@@ -13,6 +13,9 @@ Role = Literal[
     "drill_gen",
     "drill_grade",
     "group_gen",
+    "choice_gen",
+    "confusable_gen",
+    "idiom_gen",
 ]
 
 ROLES: tuple[Role, ...] = (
@@ -22,6 +25,9 @@ ROLES: tuple[Role, ...] = (
     "drill_gen",
     "drill_grade",
     "group_gen",
+    "choice_gen",
+    "confusable_gen",
+    "idiom_gen",
 )
 
 
@@ -34,6 +40,9 @@ def model_for(role: Role, settings: Settings) -> str:
         "drill_gen": settings.llm_drill_gen_model,
         "drill_grade": settings.llm_drill_grade_model,
         "group_gen": settings.llm_group_gen_model,
+        "choice_gen": settings.llm_choice_gen_model,
+        "confusable_gen": settings.llm_confusable_gen_model,
+        "idiom_gen": settings.llm_idiom_gen_model,
     }
     model = mapping[role]
     if not model or "<" in model:
@@ -50,5 +59,8 @@ def prompt_version_for(role: Role, settings: Settings) -> int:
         "drill_gen": settings.llm_drill_gen_prompt_version,
         "drill_grade": settings.llm_drill_grade_prompt_version,
         "group_gen": settings.llm_group_gen_prompt_version,
+        "choice_gen": settings.llm_choice_gen_prompt_version,
+        "confusable_gen": settings.llm_confusable_gen_prompt_version,
+        "idiom_gen": settings.llm_idiom_gen_prompt_version,
     }
     return mapping[role]

@@ -65,7 +65,7 @@ class WordUsedPayload(BaseModel):
 
 class CardReviewedPayload(BaseModel):
     rating: str
-    source: Literal["conversation", "drill", "review_page"]
+    source: Literal["conversation", "drill", "review_page", "exercise"]
     # Stored so `vocab srs rebuild` can replay without the old card row.
     option_id: str
 
@@ -79,6 +79,12 @@ class DrillDisputedPayload(BaseModel):
     note: str | None = None
 
 
+class ExerciseAnsweredPayload(BaseModel):
+    item_type: str
+    correct: bool
+    option_id: str | None = None
+
+
 PAYLOAD_MODELS: dict[str, type[BaseModel]] = {
     "suggestion_shown": SuggestionShownPayload,
     "suggestion_accepted": SuggestionAcceptedPayload,
@@ -88,6 +94,7 @@ PAYLOAD_MODELS: dict[str, type[BaseModel]] = {
     "card_reviewed": CardReviewedPayload,
     "drill_graded": DrillGradedPayload,
     "drill_disputed": DrillDisputedPayload,
+    "exercise_answered": ExerciseAnsweredPayload,
 }
 
 

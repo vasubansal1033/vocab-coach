@@ -2,7 +2,7 @@
 
 This file hands the next round of work to a coding agent that has not seen the conversation in which it was planned. It records the product decisions, the order of work, and the checks that apply to every section. The detailed design is in `docs/DESIGN.md`, and the per-section tasks, files and decisions are in `docs/PLAN.md`. This file does not repeat them.
 
-Everything up to and including the "Dashboard" section of `docs/PLAN.md` is built. The six sections after it are planned and not started: "Conversation improvements", "Drill improvements", "Choose the word", "Word sets", "Compare" and "Idioms".
+Everything up to and including the "Choose the word" section of `docs/PLAN.md` is built. The three sections after it that are still planned: "Word sets", "Compare" and "Idioms". (Conversation improvements and Drill improvements are also built.)
 
 ## Product decisions
 
