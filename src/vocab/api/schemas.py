@@ -411,3 +411,11 @@ class LexiconImportOut(BaseModel):
 class LexiconBuiltinImportOut(BaseModel):
     groups: int
     options: int
+
+
+class LexiconPublicImportOut(BaseModel):
+    groups: int
+    options: int
+    items: int
+    sources: list[str]
+    attribution: list[str]

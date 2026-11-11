@@ -18,6 +18,7 @@ MAX_BATCH_ITEMS = 20
 DEFAULT_PAGE_SIZE = 20
 MAX_PAGE_SIZE = 100
 MAX_IMPORT_ITEMS = 200
+MAX_PUBLIC_IMPORT_ITEMS = 20_000
 
 
 class IdempotencyConflictError(ValueError):
@@ -275,6 +276,66 @@ def import_builtin_catalog(session: Session, *, source: str = "seed") -> dict[st
 
     items = [LemmaSeedFile.model_validate(raw) for raw in BUILTIN_LEXICON_ITEMS]
     return import_approved_items(session, items, source=source)
+
+
+def import_public_catalog(
+    session: Session,
+    *,
+    sources: list[str] | None = None,
+    abc_confusable_limit: int | None = None,
+    source: str = "public",
+) -> dict[str, Any]:
+    """Fetch public datasets, convert, and upsert as approved."""
+    from vocab.lexicon.public_datasets import (
+        SourceName,
+        attribution_lines,
+        build_public_items,
+    )
+
+    allowed: set[str] = {"lexkite", "abc_precision", "abc_confusable"}
+    chosen: list[SourceName]
+    if sources:
+        unknown = [s for s in sources if s not in allowed]
+        if unknown:
+            raise ValueError(f"unknown sources: {', '.join(unknown)}")
+        chosen = [s for s in sources if s in allowed]  # type: ignore[misc]
+    else:
+        chosen = ["lexkite", "abc_precision", "abc_confusable"]
+    items = build_public_items(chosen, abc_confusable_limit=abc_confusable_limit)
+    if len(items) > MAX_PUBLIC_IMPORT_ITEMS:
+        raise ValueError(f"at most {MAX_PUBLIC_IMPORT_ITEMS} items per public import")
+    # Bypass the smaller JSON-body import cap used by /lexicon/import.
+    if not items:
+        raise ValueError("public import produced no items")
+    group_count = 0
+    option_count = 0
+    for item in items:
+        for group_data in item.groups:
+            _upsert_group(
+                session,
+                group_id=group_data.id,
+                kind=item.kind,
+                head_lemma=item.head_lemma,
+                pos=group_data.pos,
+                sense_gloss=group_data.sense_gloss,
+                status="approved",
+                source=source,
+            )
+            group_count += 1
+            for opt in group_data.options:
+                opt.details = validate_details(item.kind, opt.details)
+                _upsert_option(session, group_id=group_data.id, opt=opt, status="approved")
+                option_count += 1
+        if group_count % 500 == 0:
+            session.flush()
+    session.commit()
+    return {
+        "groups": group_count,
+        "options": option_count,
+        "items": len(items),
+        "sources": list(chosen or ["lexkite", "abc_precision", "abc_confusable"]),
+        "attribution": attribution_lines(),
+    }
 
 
 def lexicon_counts(session: Session) -> dict[str, int]:

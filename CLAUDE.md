@@ -19,7 +19,7 @@ uv run ruff check . && uv run ruff format --check .
 uv run alembic revision --autogenerate -m "<message>"
 uv run alembic upgrade head
 uv run vocab setup-nlp                  # spaCy model and WordNet data
-# Lexicon seed: POST /api/lexicon/import/builtin (admin)
+# Lexicon seed: POST /api/lexicon/import/builtin or /import/public (admin)
 uv run vocab eval editor                # editor quality eval
 docker compose -f infra/authentik/compose.yml up -d   # authentik on http://localhost:9000
 ```

@@ -7,6 +7,7 @@ import re
 from datetime import UTC, datetime, timedelta
 from typing import Annotated
 
+import httpx
 from fastapi import APIRouter, Depends, Header, HTTPException, Query, Request
 from fastapi.responses import JSONResponse
 from sqlalchemy import func, select
@@ -48,6 +49,7 @@ from vocab.api.schemas import (
     LexiconGroupOut,
     LexiconImportOut,
     LexiconOptionOut,
+    LexiconPublicImportOut,
     LexiconSubmitIn,
     LexiconSubmitOut,
     MessageIn,
@@ -113,6 +115,7 @@ from vocab.lexicon.ingest import (
     get_approved_group,
     import_approved_batch,
     import_builtin_catalog,
+    import_public_catalog,
     list_approved_groups,
     submit_user_batch,
 )
@@ -1152,5 +1155,35 @@ def build_router(settings: Settings | None = None) -> APIRouter:
         require_admin(user, settings)
         counts = import_builtin_catalog(session, source="seed")
         return LexiconBuiltinImportOut.model_validate(counts)
+
+    @router.post("/lexicon/import/public", response_model=LexiconPublicImportOut)
+    def lexicon_import_public(
+        sources: Annotated[
+            str | None,
+            Query(description="Comma-separated: lexkite,abc_precision,abc_confusable"),
+        ] = None,
+        abc_confusable_limit: Annotated[int | None, Query(ge=1, le=20_000)] = None,
+        user: User = Depends(current_user),
+        session: Session = Depends(get_session),
+    ) -> LexiconPublicImportOut:
+        """Admin-only: fetch public datasets and upsert as approved."""
+        require_admin(user, settings)
+        source_list = (
+            [part.strip() for part in sources.split(",") if part.strip()] if sources else None
+        )
+        try:
+            result = import_public_catalog(
+                session,
+                sources=source_list,
+                abc_confusable_limit=abc_confusable_limit,
+                source="public",
+            )
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        except httpx.HTTPError as exc:
+            raise HTTPException(
+                status_code=502, detail=f"public dataset fetch failed: {exc}"
+            ) from exc
+        return LexiconPublicImportOut.model_validate(result)
 
     return router
