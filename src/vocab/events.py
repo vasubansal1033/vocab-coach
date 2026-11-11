@@ -49,6 +49,13 @@ class SuggestionDismissedPayload(BaseModel):
     """No fields; presence of the event is the signal."""
 
 
+class SuggestionRetriedPayload(BaseModel):
+    """User chose an option to rewrite the message draft immediately."""
+
+    option_id: str | None = None
+    word: str
+
+
 class WordUsedPayload(BaseModel):
     option_id: str
     correct: bool
@@ -68,13 +75,19 @@ class DrillGradedPayload(BaseModel):
     rubric: dict[str, Any] = Field(default_factory=dict)
 
 
+class DrillDisputedPayload(BaseModel):
+    note: str | None = None
+
+
 PAYLOAD_MODELS: dict[str, type[BaseModel]] = {
     "suggestion_shown": SuggestionShownPayload,
     "suggestion_accepted": SuggestionAcceptedPayload,
     "suggestion_dismissed": SuggestionDismissedPayload,
+    "suggestion_retried": SuggestionRetriedPayload,
     "word_used": WordUsedPayload,
     "card_reviewed": CardReviewedPayload,
     "drill_graded": DrillGradedPayload,
+    "drill_disputed": DrillDisputedPayload,
 }
 
 

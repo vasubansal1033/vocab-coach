@@ -359,7 +359,7 @@ Conversations feel like real writing tasks for a professional, and a suggestion 
 
 #### Tasks
 
-- [ ] Writing-task presets on the new conversation page. Each preset fills `title` and `feedback_expectations` and sets `allow_idioms`:
+- [x] Writing-task presets on the new conversation page. Each preset fills `title` and `feedback_expectations` and sets `allow_idioms`:
 
   | Preset | Register in `feedback_expectations` | `allow_idioms` |
   |---|---|---|
@@ -370,12 +370,12 @@ Conversations feel like real writing tasks for a professional, and a suggestion 
   | Declining a request | Polite and firm | false |
   | Meeting summary | Neutral, decisions and owners | false |
 
-- [ ] Retry with this word: the server replaces `messages.content[span_start:span_end]` with the option's word, records `suggestion_retried`, accepts the suggestion if it was not accepted, and returns the text. The frontend puts the text in the message box; the user edits and sends it as a normal message.
-- [ ] Recap, built from recorded data with no new LLM role:
+- [x] Retry with this word: the server replaces `messages.content[span_start:span_end]` with the option's word, records `suggestion_retried`, accepts the suggestion if it was not accepted, and returns the text. The frontend puts the text in the message box; the user edits and sends it as a normal message.
+- [x] Recap, built from recorded data with no new LLM role:
   - Words to keep: options accepted in this conversation, then the highest-ranked shown and not dismissed suggestion options, up to three in total.
   - Crutch words: lemmas from `message_lemma_counts` for this conversation's user messages where `is_crutch()` is true, with counts, most frequent first.
   - One sentence to rewrite: the sentence of a user message that holds the highest-ranked suggestion that was neither accepted nor dismissed. Find the sentence boundaries with the existing spaCy analyzer, not with a regex.
-- [ ] Flow mode as described in "Decisions already made".
+- [x] Flow mode as described in "Decisions already made".
 
 #### Done when
 
@@ -422,11 +422,11 @@ Drills have one clearly best answer, give help before the user gives up, and com
 
 #### Tasks
 
-- [ ] `prompts/drill_gen.v2.md`: one or two sentences of context, then the vague sentence, written so the intended option is the best fit by a clear margin.
-- [ ] Hints as decided above; the hints used are stored on the attempt and shown in the grade.
-- [ ] The grade view shows the user's rewrite next to `better_version` when there is one. Otherwise it shows the rewrite next to the intended word with its distinction. The grader's feedback sentence goes under both.
-- [ ] Dispute button, `drill_disputed` event, and the export CLI.
-- [ ] Sets of five, then a summary: mean score, the words practised, and the total hints used.
+- [x] `prompts/drill_gen.v2.md`: one or two sentences of context, then the vague sentence, written so the intended option is the best fit by a clear margin.
+- [x] Hints as decided above; the hints used are stored on the attempt and shown in the grade.
+- [x] The grade view shows the user's rewrite next to `better_version` when there is one. Otherwise it shows the rewrite next to the intended word with its distinction. The grader's feedback sentence goes under both.
+- [x] Dispute button, `drill_disputed` event, and the export CLI.
+- [x] Sets of five, then a summary: mean score, the words practised, and the total hints used.
 
 #### Done when
 

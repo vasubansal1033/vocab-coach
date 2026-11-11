@@ -7,7 +7,7 @@ The target user is a non-native English speaker who works in English and wants t
 It has two practice modes today:
 
 - **Conversation.** The user chats with an AI partner. After each user reply, an editor model reviews the reply and suggests at most two more precise word choices, explaining how each option changes the meaning.
-- **Rewrite drills.** The app generates a vague sentence on purpose that targets one word group, the user rewrites it, and a grader model scores the rewrite against a fixed rubric.
+- **Rewrite drills.** The app generates a short context plus a vague sentence that targets one word group, the user rewrites it with optional hints, and a grader model scores the rewrite against a fixed rubric. Drills run in sets of five with a server-side summary; disputed grades are recorded as events and exported by CLI.
 
 Three more practice modes are planned and described in "Planned practice modes": choosing the word that fits a sentence, comparing near-synonyms, and idioms.
 
@@ -120,7 +120,7 @@ All IDs are UUIDv4 strings generated in Python. Every table holding a user's dat
 
 | Table | Columns | Notes |
 |---|---|---|
-| `conversations` | `id`, `user_id`, `title`, `feedback_expectations` (nullable), `created_at` | `title` is the conversation name/scenario. Optional `feedback_expectations` steers the editor toward domain vocabulary for that thread |
+| `conversations` | `id`, `user_id`, `title`, `feedback_expectations` (nullable), `flow_mode` (boolean, default false), `allow_idioms` (boolean, default false), `created_at` | `title` is the conversation name/scenario. Optional `feedback_expectations` steers the editor toward domain vocabulary for that thread. `flow_mode` and `allow_idioms` are set at creation and not changed later. In flow mode the editor runs only on recap, so `suggestion_shown` is not recorded during the chat |
 | `messages` | `id`, `conversation_id`, `user_id`, `role` (`user` or `partner`), `content`, `word_count`, `created_at` | `word_count` is the denominator for crutch rate |
 | `message_lemma_counts` | `message_id`, `user_id`, `lemma`, `surface`, `count` | Written by the analyzer for user messages only. Feeds crutch rate and overuse lift |
 
@@ -145,8 +145,8 @@ All IDs are UUIDv4 strings generated in Python. Every table holding a user's dat
 | Table | Columns | Notes |
 |---|---|---|
 | `srs_cards` | `id`, `user_id`, `option_id`, `fsrs_card` (JSON from `Card.to_dict()`), `due_at`, `created_at` | Unique on `(user_id, option_id)`. `due_at` is copied out of the JSON so it can be indexed |
-| `drills` | `id`, `user_id`, `group_id`, `vague_sentence`, `intended_option_id`, `intended_word`, `llm_call_id`, `created_at` | Intended option comes from `drill_gen` |
-| `drill_attempts` | `id`, `drill_id`, `user_id`, `answer`, `grade` (JSON), `score`, `llm_call_id`, `created_at` | |
+| `drills` | `id`, `user_id`, `group_id`, `vague_sentence`, `context` (nullable), `intended_option_id`, `intended_word`, `llm_call_id`, `created_at` | Intended option comes from `drill_gen`. `context` is set by prompt v2 and null for older drills |
+| `drill_attempts` | `id`, `drill_id`, `user_id`, `answer`, `grade` (JSON), `score`, `hints_used` (default 0), `llm_call_id`, `created_at` | Hints do not change the score; they are shown with the grade |
 
 #### Events and LLM calls
 
@@ -162,9 +162,11 @@ Event types and their payloads are defined as Pydantic models in `events.py`:
 | `suggestion_shown` | suggestion | `group_id` |
 | `suggestion_accepted` | suggestion | `option_id` (nullable), `word` |
 | `suggestion_dismissed` | suggestion | none |
+| `suggestion_retried` | suggestion | `option_id` (nullable), `word` |
 | `word_used` | message | `option_id`, `correct`, `prompted`, `judge_call_id` |
 | `card_reviewed` | srs card | `rating`, `source` (`conversation`, `drill`, `review_page`), `option_id` |
 | `drill_graded` | drill attempt | `score`, `rubric` scores |
+| `drill_disputed` | drill attempt | `note` (nullable) |
 
 Metrics are computed from `events`, `messages` and `message_lemma_counts`. The `srs_cards` table holds current scheduler state for fast lookup, and it can be rebuilt by replaying `card_reviewed` events.
 
@@ -375,9 +377,6 @@ Other schema changes:
 
 | Table | Change | Section |
 |---|---|---|
-| `conversations` | `flow_mode` (boolean, default false), `allow_idioms` (boolean, default false), both set at creation | Conversation improvements, Idioms |
-| `drills` | `context` (text, nullable) | Drill improvements |
-| `drill_attempts` | `hints_used` (integer, default 0) | Drill improvements |
 | `precision_groups` | `kind`, nullable `head_lemma` | Word sets |
 | `precision_options` | `details` (JSON, nullable) | Word sets |
 
@@ -385,8 +384,6 @@ New event types, each with a Pydantic payload in `events.py`:
 
 | Event type | Subject | Payload |
 |---|---|---|
-| `suggestion_retried` | suggestion | `option_id` (nullable), `word` |
-| `drill_disputed` | drill attempt | `note` (nullable) |
 | `exercise_answered` | exercise attempt | `item_type`, `correct`, `option_id` (nullable, the option the item tested) |
 
 `card_reviewed.source` gains the value `exercise`.

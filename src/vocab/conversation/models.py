@@ -5,7 +5,7 @@ from __future__ import annotations
 from datetime import UTC, datetime
 from uuid import uuid4
 
-from sqlalchemy import DateTime, ForeignKey, Integer, String, Text, UniqueConstraint
+from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, String, Text, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from vocab.db import Base
@@ -29,6 +29,10 @@ class Conversation(Base):
     title: Mapped[str] = mapped_column(String, default="")
     # Optional brief for the editor: domain, tone, specialized terms to prefer.
     feedback_expectations: Mapped[str | None] = mapped_column(Text, nullable=True, default=None)
+    # Set at creation only: skip per-message editor until recap.
+    flow_mode: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    # Set at creation; Idioms section uses this for editor input.
+    allow_idioms: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
     messages: Mapped[list[Message]] = relationship(

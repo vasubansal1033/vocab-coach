@@ -24,6 +24,8 @@ class ConversationOut(BaseModel):
     id: str
     title: str
     feedback_expectations: str | None = None
+    flow_mode: bool = False
+    allow_idioms: bool = False
     created_at: str | None = None
     messages: list[MessageOut] | None = None
 
@@ -38,6 +40,8 @@ class ConversationCreateIn(BaseModel):
     name: str | None = Field(default=None, max_length=200)
     topic: str | None = Field(default=None, max_length=200)
     feedback_expectations: str | None = Field(default=None, max_length=4000)
+    flow_mode: bool = False
+    allow_idioms: bool = False
 
     @model_validator(mode="after")
     def require_nonblank_name(self) -> ConversationCreateIn:
@@ -58,6 +62,31 @@ class MessageIn(BaseModel):
 
 class AcceptIn(BaseModel):
     option_id: str
+
+
+class RetryIn(BaseModel):
+    option_id: str
+
+
+class RetryOut(BaseModel):
+    text: str
+
+
+class RecapWordOut(BaseModel):
+    word: str
+    option_id: str | None = None
+    source: str
+
+
+class RecapCrutchOut(BaseModel):
+    lemma: str
+    count: int
+
+
+class RecapOut(BaseModel):
+    words_to_keep: list[RecapWordOut]
+    crutch_words: list[RecapCrutchOut]
+    rewrite_sentence: str | None = None
 
 
 class SuggestionOptionOut(BaseModel):
@@ -164,16 +193,36 @@ class DrillOut(BaseModel):
     id: str
     vague_sentence: str
     intended_word: str
+    context: str | None = None
+    intended_distinction: str | None = None
 
 
 class DrillAnswerIn(BaseModel):
     answer: str = Field(min_length=1)
+    hints_used: int = Field(default=0, ge=0, le=3)
 
 
 class DrillAttemptOut(BaseModel):
+    id: str
     answer: str
     score: float | None = None
     grade: dict[str, Any] | None = None
+    hints_used: int = 0
+
+
+class DrillHintOut(BaseModel):
+    level: int
+    text: str
+
+
+class DrillDisputeIn(BaseModel):
+    note: str | None = None
+
+
+class DrillSummaryOut(BaseModel):
+    mean_score: float
+    words_practised: list[str]
+    total_hints_used: int
 
 
 class AccountLimitsOut(BaseModel):

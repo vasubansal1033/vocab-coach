@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
-import { api, type Message } from '../api'
+import { api, type Message, type Recap } from '../api'
 import MessageFeedback from '../components/MessageFeedback'
 
 function openPartnerStream(
@@ -50,6 +50,7 @@ export default function ConversationPage() {
   const partnerSourceRef = useRef<EventSource | null>(null)
   const [title, setTitle] = useState('')
   const [expectations, setExpectations] = useState<string | null>(null)
+  const [flowMode, setFlowMode] = useState(false)
   const [messages, setMessages] = useState<Message[]>([])
   const [feedbackIds, setFeedbackIds] = useState<Set<string>>(() => new Set())
   const [draft, setDraft] = useState('')
@@ -57,6 +58,8 @@ export default function ConversationPage() {
   const [partnerDraft, setPartnerDraft] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [deleting, setDeleting] = useState(false)
+  const [recap, setRecap] = useState<Recap | null>(null)
+  const [recapBusy, setRecapBusy] = useState(false)
 
   useEffect(() => {
     return () => {
@@ -71,9 +74,16 @@ export default function ConversationPage() {
       .then((data) => {
         setTitle(data.title)
         setExpectations(data.feedback_expectations || null)
+        const flow = Boolean(data.flow_mode)
+        setFlowMode(flow)
         const msgs = data.messages || []
         setMessages(msgs)
-        setFeedbackIds(new Set(msgs.filter((m) => m.role === 'user').map((m) => m.id)))
+        // Flow mode skips per-message feedback so suggestion_shown stays empty until recap.
+        if (!flow) {
+          setFeedbackIds(new Set(msgs.filter((m) => m.role === 'user').map((m) => m.id)))
+        } else {
+          setFeedbackIds(new Set())
+        }
       })
       .catch((err: Error) => setError(err.message))
   }, [id])
@@ -93,6 +103,19 @@ export default function ConversationPage() {
     }
   }
 
+  async function onFinishRecap() {
+    setRecapBusy(true)
+    setError(null)
+    try {
+      const data = await api.recap(id)
+      setRecap(data)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Recap failed')
+    } finally {
+      setRecapBusy(false)
+    }
+  }
+
   async function onSubmit(event: FormEvent) {
     event.preventDefault()
     if (!draft.trim() || busy) return
@@ -103,7 +126,9 @@ export default function ConversationPage() {
     try {
       const message = await api.postMessage(id, draft)
       setMessages((prev) => [...prev, message])
-      setFeedbackIds((prev) => new Set(prev).add(message.id))
+      if (!flowMode) {
+        setFeedbackIds((prev) => new Set(prev).add(message.id))
+      }
       setDraft('')
       partnerSourceRef.current = openPartnerStream(id, message.id, {
         onToken: (token) => setPartnerDraft((prev) => (prev || '') + token),
@@ -144,8 +169,9 @@ export default function ConversationPage() {
         <div>
           <h1>{title || 'Conversation'}</h1>
           <p className="muted">
-            Practice this scenario with the partner. Wording feedback appears in its own panel under
-            your message.
+            {flowMode
+              ? 'Flow mode: write freely. Finish to see wording feedback in the recap.'
+              : 'Practice this scenario with the partner. Wording feedback appears in its own panel under your message.'}
           </p>
           {expectations ? (
             <p className="muted">
@@ -169,7 +195,11 @@ export default function ConversationPage() {
                 <p>{message.content}</p>
               </div>
               {feedbackIds.has(message.id) ? (
-                <MessageFeedback conversationId={id} messageId={message.id} />
+                <MessageFeedback
+                  conversationId={id}
+                  messageId={message.id}
+                  onRetryText={setDraft}
+                />
               ) : null}
             </div>
           ) : (
@@ -192,10 +222,58 @@ export default function ConversationPage() {
           Your message
           <textarea value={draft} onChange={(e) => setDraft(e.target.value)} required />
         </label>
-        <button type="submit" disabled={busy}>
-          {busy ? 'Sending…' : 'Send'}
-        </button>
+        <div className="row">
+          <button type="submit" disabled={busy}>
+            {busy ? 'Sending…' : 'Send'}
+          </button>
+          <button type="button" className="ghost" disabled={recapBusy} onClick={onFinishRecap}>
+            {recapBusy ? 'Building recap…' : 'Finish and show recap'}
+          </button>
+        </div>
       </form>
+
+      {recap ? (
+        <aside className="panel stack" aria-label="Conversation recap">
+          <h2>Recap</h2>
+          <div>
+            <h3>Words to keep</h3>
+            {recap.words_to_keep.length ? (
+              <ul>
+                {recap.words_to_keep.map((w) => (
+                  <li key={`${w.source}-${w.word}`}>
+                    {w.word}
+                    <span className="muted"> ({w.source})</span>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="muted">No keep words yet.</p>
+            )}
+          </div>
+          <div>
+            <h3>Crutch words</h3>
+            {recap.crutch_words.length ? (
+              <ul>
+                {recap.crutch_words.map((c) => (
+                  <li key={c.lemma}>
+                    {c.lemma} × {c.count}
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="muted">No crutch lemmas in this conversation.</p>
+            )}
+          </div>
+          <div>
+            <h3>One sentence to rewrite</h3>
+            {recap.rewrite_sentence ? (
+              <p>{recap.rewrite_sentence}</p>
+            ) : (
+              <p className="muted">No open suggestion left to practise.</p>
+            )}
+          </div>
+        </aside>
+      ) : null}
     </>
   )
 }

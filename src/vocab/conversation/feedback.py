@@ -93,11 +93,15 @@ async def ensure_message_feedback(
     message: Message,
     user_id: str,
     settings: Settings,
+    allow_flow_mode: bool = False,
 ) -> FeedbackResult:
     """Return feedback for a message, reusing an existing editor run when present.
 
     GET feedback must be idempotent: no second LLM call, no duplicate suggestions,
     no extra suggestion_shown events.
+
+    In flow mode the per-message feedback route must not run the editor (that would
+    record suggestion_shown early). Recap passes allow_flow_mode=True to run it then.
     """
     existing = latest_editor_run(session, message_id=message.id, user_id=user_id)
     if existing is not None:
@@ -105,6 +109,17 @@ async def ensure_message_feedback(
             message=message,
             run=existing,
             suggestions=suggestions_for_run(session, existing.id),
+        )
+
+    if conversation.flow_mode and not allow_flow_mode:
+        return FeedbackResult(
+            failed=False,
+            content=message.content,
+            overview=None,
+            highlighted_html="",
+            keep=[],
+            suggestions=[],
+            why_by_original={},
         )
 
     partner_previous = previous_partner_content(session, conversation.id)

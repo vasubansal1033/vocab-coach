@@ -9,7 +9,7 @@ from datetime import UTC, datetime, timedelta
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import JSONResponse
 from sqlalchemy import func, select
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, selectinload
 from sse_starlette.sse import EventSourceResponse, ServerSentEvent
 
 from vocab.account.service import delete_user, export_user
@@ -23,7 +23,10 @@ from vocab.api.schemas import (
     DashboardOut,
     DrillAnswerIn,
     DrillAttemptOut,
+    DrillDisputeIn,
+    DrillHintOut,
     DrillOut,
+    DrillSummaryOut,
     DrillWeekOut,
     FeedbackOut,
     LemmaDetailOut,
@@ -33,6 +36,11 @@ from vocab.api.schemas import (
     MetricWeekOut,
     OveruseGroupOut,
     OveruseRowOut,
+    RecapCrutchOut,
+    RecapOut,
+    RecapWordOut,
+    RetryIn,
+    RetryOut,
     ReviewDueOut,
     ReviewIn,
     ReviewOptionOut,
@@ -50,8 +58,15 @@ from vocab.conversation import service
 from vocab.conversation.feedback import ensure_message_feedback
 from vocab.conversation.models import Conversation, Message
 from vocab.db import get_session
-from vocab.drills.models import Drill
-from vocab.drills.service import create_drill, grade_attempt
+from vocab.drills.models import Drill, DrillAttempt
+from vocab.drills.service import (
+    create_drill,
+    dispute_attempt,
+    grade_attempt,
+    hint_for,
+    intended_distinction,
+    summarize_attempts,
+)
 from vocab.editor.models import Suggestion, SuggestionOption
 from vocab.llm.models import LlmCall
 from vocab.metrics.queries import (
@@ -96,6 +111,8 @@ def _conversation_out(
         id=conversation.id,
         title=conversation.title,
         feedback_expectations=conversation.feedback_expectations,
+        flow_mode=bool(conversation.flow_mode),
+        allow_idioms=bool(conversation.allow_idioms),
         created_at=conversation.created_at.isoformat() if conversation.created_at else None,
         messages=[_message_out(m) for m in conversation.messages] if with_messages else None,
     )
@@ -214,6 +231,8 @@ def build_router(settings: Settings | None = None) -> APIRouter:
             user.id,
             body.resolved_name(),
             feedback_expectations=body.feedback_expectations,
+            flow_mode=body.flow_mode,
+            allow_idioms=body.allow_idioms,
         )
         return _conversation_out(conversation)
 
@@ -402,6 +421,55 @@ def build_router(settings: Settings | None = None) -> APIRouter:
             original_text=suggestion.original_text,
         )
 
+    @router.post(
+        "/conversations/{conversation_id}/suggestions/{suggestion_id}/retry",
+        response_model=RetryOut,
+    )
+    def retry_suggestion(
+        conversation_id: str,
+        suggestion_id: str,
+        body: RetryIn,
+        user: User = Depends(current_user),
+        session: Session = Depends(get_session),
+    ) -> RetryOut:
+        _owned_conversation(session, conversation_id, user)
+        suggestion = session.get(Suggestion, suggestion_id)
+        if (
+            suggestion is None
+            or suggestion.user_id != user.id
+            or not _suggestion_in_conversation(session, conversation_id, suggestion)
+        ):
+            raise HTTPException(status_code=404, detail="Not found")
+        authorize(user.id, "update", suggestion)
+        option = session.get(SuggestionOption, body.option_id)
+        if option is None or option.suggestion_id != suggestion.id:
+            raise HTTPException(status_code=404, detail="Not found")
+        text = service.retry_suggestion(
+            session, suggestion=suggestion, option=option, user_id=user.id
+        )
+        return RetryOut(text=text)
+
+    @router.get("/conversations/{conversation_id}/recap", response_model=RecapOut)
+    async def conversation_recap(
+        conversation_id: str,
+        user: User = Depends(current_user),
+        session: Session = Depends(get_session),
+    ) -> RecapOut:
+        conversation = _owned_conversation(session, conversation_id, user)
+        recap = await service.conversation_recap(
+            session, conversation=conversation, user_id=user.id, settings=settings
+        )
+        return RecapOut(
+            words_to_keep=[
+                RecapWordOut(word=w.word, option_id=w.option_id, source=w.source)
+                for w in recap.words_to_keep
+            ],
+            crutch_words=[
+                RecapCrutchOut(lemma=c.lemma, count=c.count) for c in recap.crutch_words
+            ],
+            rewrite_sentence=recap.rewrite_sentence,
+        )
+
     @router.get("/dashboard", response_model=DashboardOut)
     def dashboard(
         user: User = Depends(current_user),
@@ -500,17 +568,66 @@ def build_router(settings: Settings | None = None) -> APIRouter:
         )
         return StatusOut(status="ok")
 
+    def _drill_out(session: Session, drill: Drill) -> DrillOut:
+        return DrillOut(
+            id=drill.id,
+            vague_sentence=drill.vague_sentence,
+            intended_word=drill.intended_word,
+            context=drill.context,
+            intended_distinction=intended_distinction(session, drill),
+        )
+
     @router.post("/drills", response_model=DrillOut)
     async def drills_create(
         user: User = Depends(current_user),
         session: Session = Depends(get_session),
     ) -> DrillOut:
         drill = await create_drill(session, user_id=user.id, settings=settings)
-        return DrillOut(
-            id=drill.id,
-            vague_sentence=drill.vague_sentence,
-            intended_word=drill.intended_word,
+        return _drill_out(session, drill)
+
+    @router.get("/drills/summary", response_model=DrillSummaryOut)
+    def drills_summary(
+        attempt_ids: str,
+        user: User = Depends(current_user),
+        session: Session = Depends(get_session),
+    ) -> DrillSummaryOut:
+        ids = [part.strip() for part in attempt_ids.split(",") if part.strip()]
+        if not ids:
+            raise HTTPException(status_code=400, detail="attempt_ids required")
+        attempts = list(
+            session.scalars(
+                select(DrillAttempt)
+                .where(DrillAttempt.user_id == user.id, DrillAttempt.id.in_(ids))
+                .options(selectinload(DrillAttempt.drill))
+            )
         )
+        by_id = {a.id: a for a in attempts}
+        ordered = [by_id[i] for i in ids if i in by_id]
+        summary = summarize_attempts(ordered)
+        return DrillSummaryOut(
+            mean_score=summary.mean_score,
+            words_practised=summary.words_practised,
+            total_hints_used=summary.total_hints_used,
+        )
+
+    @router.post("/drills/attempts/{attempt_id}/dispute", response_model=StatusOut)
+    def drills_dispute(
+        attempt_id: str,
+        body: DrillDisputeIn,
+        user: User = Depends(current_user),
+        session: Session = Depends(get_session),
+    ) -> StatusOut:
+        attempt = session.get(DrillAttempt, attempt_id)
+        if attempt is None:
+            raise HTTPException(status_code=404, detail="Not found")
+        authorize(user.id, "update", attempt)
+        dispute_attempt(
+            session,
+            attempt=attempt,
+            user_id=user.id,
+            note=body.note,
+        )
+        return StatusOut(status="ok")
 
     @router.get("/drills/{drill_id}", response_model=DrillOut)
     def drills_get(
@@ -522,11 +639,22 @@ def build_router(settings: Settings | None = None) -> APIRouter:
         if drill is None:
             raise HTTPException(status_code=404, detail="Not found")
         authorize(user.id, "read", drill)
-        return DrillOut(
-            id=drill.id,
-            vague_sentence=drill.vague_sentence,
-            intended_word=drill.intended_word,
-        )
+        return _drill_out(session, drill)
+
+    @router.get("/drills/{drill_id}/hint", response_model=DrillHintOut)
+    def drills_hint(
+        drill_id: str,
+        level: int,
+        user: User = Depends(current_user),
+        session: Session = Depends(get_session),
+    ) -> DrillHintOut:
+        if level not in (1, 2, 3):
+            raise HTTPException(status_code=400, detail="level must be 1, 2 or 3")
+        drill = session.get(Drill, drill_id)
+        if drill is None:
+            raise HTTPException(status_code=404, detail="Not found")
+        authorize(user.id, "read", drill)
+        return DrillHintOut(level=level, text=hint_for(session, drill, level))
 
     @router.post("/drills/{drill_id}/attempt", response_model=DrillAttemptOut)
     async def drills_attempt(
@@ -544,9 +672,16 @@ def build_router(settings: Settings | None = None) -> APIRouter:
             drill=drill,
             user_id=user.id,
             answer=body.answer,
+            hints_used=body.hints_used,
             settings=settings,
         )
         grade = attempt.grade if isinstance(attempt.grade, dict) else None
-        return DrillAttemptOut(answer=attempt.answer, score=attempt.score, grade=grade)
+        return DrillAttemptOut(
+            id=attempt.id,
+            answer=attempt.answer,
+            score=attempt.score,
+            grade=grade,
+            hints_used=attempt.hints_used,
+        )
 
     return router

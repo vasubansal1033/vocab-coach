@@ -13,9 +13,11 @@ type FeedbackState =
 export default function MessageFeedback({
   conversationId,
   messageId,
+  onRetryText,
 }: {
   conversationId: string
   messageId: string
+  onRetryText?: (text: string) => void
 }) {
   const [state, setState] = useState<FeedbackState>({ status: 'loading' })
 
@@ -61,6 +63,23 @@ export default function MessageFeedback({
         done: {
           ...state.done,
           [suggestion.id]: `Dismissed: ${result.original_text}`,
+        },
+      })
+    } catch {
+      setState({ status: 'failed' })
+    }
+  }
+
+  async function retry(suggestion: Suggestion, optionId: string) {
+    if (state.status !== 'ready') return
+    try {
+      const result = await api.retry(conversationId, suggestion.id, optionId)
+      onRetryText?.(result.text)
+      setState({
+        ...state,
+        done: {
+          ...state.done,
+          [suggestion.id]: `Retry with ${suggestion.options.find((o) => o.id === optionId)?.word ?? 'word'} for ${suggestion.original_text}`,
         },
       })
     } catch {
@@ -124,6 +143,13 @@ export default function MessageFeedback({
                     onClick={() => accept(suggestion, opt.id)}
                   >
                     {opt.word}
+                  </button>
+                  <button
+                    type="button"
+                    className="ghost"
+                    onClick={() => retry(suggestion, opt.id)}
+                  >
+                    Retry with this word
                   </button>
                   <span className="muted">{opt.meaning}</span>
                 </li>

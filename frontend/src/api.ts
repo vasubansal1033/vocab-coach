@@ -41,8 +41,16 @@ export type Conversation = {
   id: string
   title: string
   feedback_expectations?: string | null
+  flow_mode?: boolean
+  allow_idioms?: boolean
   created_at: string | null
   messages?: Message[]
+}
+
+export type Recap = {
+  words_to_keep: { word: string; option_id: string | null; source: string }[]
+  crutch_words: { lemma: string; count: number }[]
+  rewrite_sentence: string | null
 }
 
 export type Message = {
@@ -105,12 +113,18 @@ export const api = {
   account: () => request<Account>('/api/account'),
   deleteAccount: () => request<void>('/api/account/delete', { method: 'POST' }),
   conversations: () => request<{ conversations: Conversation[] }>('/api/conversations'),
-  createConversation: (name: string, feedbackExpectations?: string) =>
+  createConversation: (
+    name: string,
+    feedbackExpectations?: string,
+    opts?: { flowMode?: boolean; allowIdioms?: boolean },
+  ) =>
     request<Conversation>('/api/conversations', {
       method: 'POST',
       body: JSON.stringify({
         name,
         feedback_expectations: feedbackExpectations?.trim() || null,
+        flow_mode: opts?.flowMode ?? false,
+        allow_idioms: opts?.allowIdioms ?? false,
       }),
     }),
   deleteConversation: (id: string) =>
@@ -135,6 +149,13 @@ export const api = {
       `/api/conversations/${conversationId}/suggestions/${suggestionId}/dismiss`,
       { method: 'POST' },
     ),
+  retry: (conversationId: string, suggestionId: string, optionId: string) =>
+    request<{ text: string }>(
+      `/api/conversations/${conversationId}/suggestions/${suggestionId}/retry`,
+      { method: 'POST', body: JSON.stringify({ option_id: optionId }) },
+    ),
+  recap: (conversationId: string) =>
+    request<Recap>(`/api/conversations/${conversationId}/recap`),
   dashboard: (params?: { prompt_version?: string; model?: string }) => {
     const q = new URLSearchParams()
     if (params?.prompt_version) q.set('prompt_version', params.prompt_version)
@@ -164,16 +185,37 @@ export const api = {
       body: JSON.stringify({ rating, answer }),
     }),
   createDrill: () =>
-    request<{ id: string; vague_sentence: string; intended_word: string }>('/api/drills', {
+    request<{
+      id: string
+      vague_sentence: string
+      intended_word: string
+      context: string | null
+      intended_distinction: string | null
+    }>('/api/drills', {
       method: 'POST',
     }),
-  gradeDrill: (drillId: string, answer: string) =>
+  drillHint: (drillId: string, level: 1 | 2 | 3) =>
+    request<{ level: number; text: string }>(`/api/drills/${drillId}/hint?level=${level}`),
+  gradeDrill: (drillId: string, answer: string, hintsUsed: number) =>
     request<{
+      id: string
       answer: string
       score: number
       grade: Record<string, unknown>
+      hints_used: number
     }>(`/api/drills/${drillId}/attempt`, {
       method: 'POST',
-      body: JSON.stringify({ answer }),
+      body: JSON.stringify({ answer, hints_used: hintsUsed }),
     }),
+  disputeDrillAttempt: (attemptId: string, note: string | null) =>
+    request<{ status: string }>(`/api/drills/attempts/${attemptId}/dispute`, {
+      method: 'POST',
+      body: JSON.stringify({ note }),
+    }),
+  drillSummary: (attemptIds: string[]) =>
+    request<{
+      mean_score: number
+      words_practised: string[]
+      total_hints_used: number
+    }>(`/api/drills/summary?attempt_ids=${encodeURIComponent(attemptIds.join(','))}`),
 }
