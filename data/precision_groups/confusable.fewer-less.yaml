@@ -1,0 +1,24 @@
+kind: confusable
+groups:
+  - id: confusable.fewer-less
+    pos: DET
+    sense_gloss: countable items versus uncountable amounts
+    options:
+      - word: fewer
+        distinction: use with countable nouns you can number
+        example: We logged fewer critical incidents this quarter than last.
+        register: neutral
+        details:
+          collocations:
+            - fewer than
+            - fewer errors
+          connotation: neutral
+      - word: less
+        distinction: use with uncountable amounts, or with singular mass nouns
+        example: The new cache uses less memory under peak load.
+        register: neutral
+        details:
+          collocations:
+            - less than
+            - less time
+          connotation: neutral

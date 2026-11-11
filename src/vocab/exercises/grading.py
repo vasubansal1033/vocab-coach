@@ -1,4 +1,4 @@
-"""Pure grading for choose-the-word responses."""
+"""Pure grading for choose-the-word and compare responses."""
 
 from __future__ import annotations
 
@@ -9,6 +9,15 @@ from vocab.exercises.schemas import (
     ChoiceFeedback,
     ChoiceFeedbackCandidate,
     ChoiceResponse,
+    CompareMisuseAnswer,
+    CompareMisuseFeedback,
+    CompareMisuseResponse,
+    CompareOrderAnswer,
+    CompareOrderFeedback,
+    CompareOrderResponse,
+    ComparePairAnswer,
+    ComparePairFeedback,
+    ComparePairResponse,
 )
 
 
@@ -37,5 +46,69 @@ def grade_choice(answer: ChoiceAnswer, response: ChoiceResponse) -> ChoiceGradeR
     )
     return ChoiceGradeResult(
         correct=response.best_option_id == answer.best_option_id,
+        feedback=feedback,
+    )
+
+
+@dataclass(frozen=True)
+class ComparePairGradeResult:
+    correct: bool
+    feedback: ComparePairFeedback
+
+
+def grade_compare_pair(
+    answer: ComparePairAnswer, response: ComparePairResponse
+) -> ComparePairGradeResult:
+    """Correct when each sentence is assigned its fitting option."""
+    feedback = ComparePairFeedback(
+        fits_option_ids=list(answer.fits_option_ids),
+        user_fits_option_ids=list(response.fits_option_ids),
+    )
+    return ComparePairGradeResult(
+        correct=list(response.fits_option_ids) == list(answer.fits_option_ids),
+        feedback=feedback,
+    )
+
+
+@dataclass(frozen=True)
+class CompareMisuseGradeResult:
+    correct: bool
+    feedback: CompareMisuseFeedback
+
+
+def grade_compare_misuse(
+    answer: CompareMisuseAnswer, response: CompareMisuseResponse
+) -> CompareMisuseGradeResult:
+    """Correct when both the misused word and its replacement match."""
+    feedback = CompareMisuseFeedback(
+        misused_option_id=answer.misused_option_id,
+        replacement_option_id=answer.replacement_option_id,
+        user_misused_option_id=response.misused_option_id,
+        user_replacement_option_id=response.replacement_option_id,
+        reason=answer.reason,
+    )
+    correct = (
+        response.misused_option_id == answer.misused_option_id
+        and response.replacement_option_id == answer.replacement_option_id
+    )
+    return CompareMisuseGradeResult(correct=correct, feedback=feedback)
+
+
+@dataclass(frozen=True)
+class CompareOrderGradeResult:
+    correct: bool
+    feedback: CompareOrderFeedback
+
+
+def grade_compare_order(
+    answer: CompareOrderAnswer, response: CompareOrderResponse
+) -> CompareOrderGradeResult:
+    """Correct when the user order matches strength order weakest to strongest."""
+    feedback = CompareOrderFeedback(
+        ordered_option_ids=list(answer.ordered_option_ids),
+        user_ordered_option_ids=list(response.ordered_option_ids),
+    )
+    return CompareOrderGradeResult(
+        correct=list(response.ordered_option_ids) == list(answer.ordered_option_ids),
         feedback=feedback,
     )

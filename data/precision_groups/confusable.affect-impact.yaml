@@ -1,0 +1,24 @@
+kind: confusable
+groups:
+  - id: confusable.affect-impact
+    pos: VERB
+    sense_gloss: to influence something, with impact often implying a stronger or measurable effect
+    options:
+      - word: affect
+        distinction: to influence or change something, the default verb for this sense
+        example: The outage affected three regional customers.
+        register: neutral
+        details:
+          collocations:
+            - affect performance
+            - adversely affect
+          connotation: neutral
+      - word: impact
+        distinction: to have a strong or noticeable effect; more emphatic, and some readers dislike it as a verb
+        example: The pricing change impacted renewal rates in the enterprise tier.
+        register: neutral
+        details:
+          collocations:
+            - impact revenue
+            - negatively impact
+          connotation: neutral

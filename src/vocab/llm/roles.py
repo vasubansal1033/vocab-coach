@@ -16,6 +16,7 @@ Role = Literal[
     "choice_gen",
     "confusable_gen",
     "idiom_gen",
+    "compare_gen",
 ]
 
 ROLES: tuple[Role, ...] = (
@@ -28,6 +29,7 @@ ROLES: tuple[Role, ...] = (
     "choice_gen",
     "confusable_gen",
     "idiom_gen",
+    "compare_gen",
 )
 
 
@@ -43,6 +45,7 @@ def model_for(role: Role, settings: Settings) -> str:
         "choice_gen": settings.llm_choice_gen_model,
         "confusable_gen": settings.llm_confusable_gen_model,
         "idiom_gen": settings.llm_idiom_gen_model,
+        "compare_gen": settings.llm_compare_gen_model,
     }
     model = mapping[role]
     if not model or "<" in model:
@@ -62,5 +65,6 @@ def prompt_version_for(role: Role, settings: Settings) -> int:
         "choice_gen": settings.llm_choice_gen_prompt_version,
         "confusable_gen": settings.llm_confusable_gen_prompt_version,
         "idiom_gen": settings.llm_idiom_gen_prompt_version,
+        "compare_gen": settings.llm_compare_gen_prompt_version,
     }
     return mapping[role]

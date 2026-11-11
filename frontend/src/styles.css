@@ -744,6 +744,13 @@ textarea {
   font-size: 1.15rem;
 }
 
+.compare-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
+
 .drill-compare {
   display: grid;
   grid-template-columns: 1fr 1fr;

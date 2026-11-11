@@ -9,12 +9,14 @@ import DashboardPage from './pages/DashboardPage'
 import LemmaPage from './pages/LemmaPage'
 import ReviewPage from './pages/ReviewPage'
 import DrillsPage from './pages/DrillsPage'
+import ComparePage from './pages/ComparePage'
 import AccountPage from './pages/AccountPage'
 
 const links = [
   ['/conversations', 'Conversations'],
   ['/review', 'Review'],
   ['/drills', 'Drills'],
+  ['/compare', 'Compare'],
   ['/dashboard', 'Dashboard'],
 ] as const
 
@@ -74,6 +76,8 @@ export default function App() {
           <Route path="/dashboard/lemma/:lemma" element={<LemmaPage />} />
           <Route path="/review" element={<ReviewPage />} />
           <Route path="/drills" element={<DrillsPage />} />
+          <Route path="/compare" element={<ComparePage />} />
+          <Route path="/compare/:groupId" element={<ComparePage />} />
           <Route path="/account" element={<AccountPage />} />
         </Routes>
       </main>

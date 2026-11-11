@@ -570,10 +570,10 @@ The user can see how near-synonyms differ and practise telling them apart.
 
 #### Tasks
 
-- [ ] Seed and review the ten confusable sets.
-- [ ] Compare card page.
-- [ ] `compare_gen` role and the three item types with grading functions.
-- [ ] `exercise_answered` events and card reviews, as in Choose the word.
+- [x] Seed and review the ten confusable sets.
+- [x] Compare card page.
+- [x] `compare_gen` role and the three item types with grading functions.
+- [x] `exercise_answered` events and card reviews, as in Choose the word.
 
 #### Done when
 

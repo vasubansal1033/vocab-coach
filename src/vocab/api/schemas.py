@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, Literal
 
 from pydantic import BaseModel, Field, model_validator
 
@@ -225,48 +225,63 @@ class DrillSummaryOut(BaseModel):
     total_hints_used: int
 
 
-class ExercisePromptCandidateOut(BaseModel):
-    option_id: str
-    word: str
-
-
-class ExercisePromptOut(BaseModel):
-    situation: str
-    sentence: str
-    candidates: list[ExercisePromptCandidateOut]
-
-
 class ExerciseOut(BaseModel):
-    """Prompt only; never includes the stored answer."""
+    """Prompt only; never includes the stored answer. Shape depends on item_type."""
 
     id: str
     item_type: str
-    prompt: ExercisePromptOut
+    prompt: dict[str, Any]
 
 
 class ExerciseAttemptIn(BaseModel):
-    best_option_id: str = Field(min_length=1)
+    """Body fields used by choice and compare item types; unused fields stay empty."""
+
+    best_option_id: str | None = None
     marked_option_ids: list[str] = Field(default_factory=list)
+    fits_option_ids: list[str] | None = None
+    misused_option_id: str | None = None
+    replacement_option_id: str | None = None
+    ordered_option_ids: list[str] | None = None
 
 
-class ExerciseFeedbackCandidateOut(BaseModel):
-    option_id: str
-    fit: str
-    reason: str
-    best: bool
-    user_marked: bool
+class ExerciseCreateCompareIn(BaseModel):
+    group_id: str = Field(min_length=1)
+    item_type: Literal["compare_pair", "compare_misuse", "compare_order"]
 
 
-class ExerciseFeedbackOut(BaseModel):
-    best_option_id: str
-    user_best_option_id: str
-    candidates: list[ExerciseFeedbackCandidateOut]
+class CompareOptionOut(BaseModel):
+    id: str
+    word: str
+    distinction: str
+    example: str
+    # Avoid shadowing BaseModel.register; JSON still uses "register".
+    speech_register: str = Field(serialization_alias="register")
+    collocations: list[str] = Field(default_factory=list)
+    connotation: str | None = None
+    strength: int | None = None
+
+
+class CompareGroupListItemOut(BaseModel):
+    id: str
+    kind: str
+    sense_gloss: str
+    words: list[str]
+    has_strength_order: bool
+
+
+class CompareCardOut(BaseModel):
+    id: str
+    kind: str
+    sense_gloss: str
+    pos: str
+    options: list[CompareOptionOut]
+    has_strength_order: bool
 
 
 class ExerciseAttemptOut(BaseModel):
     id: str
     correct: bool
-    feedback: ExerciseFeedbackOut
+    feedback: dict[str, Any]
 
 
 class AccountLimitsOut(BaseModel):

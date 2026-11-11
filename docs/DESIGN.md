@@ -70,14 +70,14 @@ flowchart LR
 | Module | Responsibility |
 |---|---|
 | `auth` | OIDC login and logout, the `identities` mapping, the current-user dependency, and the `authorize()` function |
-| `llm` | The only place that calls LiteLLM. Maps roles (`partner`, `editor`, `usage_judge`, `drill_gen`, `drill_grade`, `group_gen`, `choice_gen`, `confusable_gen`, `idiom_gen`) to model strings, loads versioned prompts, validates structured output, and records every call in `llm_calls` |
+| `llm` | The only place that calls LiteLLM. Maps roles (`partner`, `editor`, `usage_judge`, `drill_gen`, `drill_grade`, `group_gen`, `choice_gen`, `confusable_gen`, `idiom_gen`, `compare_gen`) to model strings, loads versioned prompts, validates structured output, and records every call in `llm_calls` |
 | `nlp` | Tokenises a message, counts lemmas, marks candidate vague words, and finds uses of learned words |
 | `lexicon` | Word sets (precision, confusable, idiom): loading YAML seeds, drafting with LLMs, and the review queue |
 | `editor` | Turns one user message into at most two suggestions linked to precision groups |
 | `conversation` | Conversations, messages, the partner reply stream, and the chat pages |
 | `practice` | FSRS cards, due-word selection for the partner, and recording learned-word usage |
 | `drills` | Generating and grading rewrite drills |
-| `exercises` | Shared recognition items (choose the word now; compare and idioms later) |
+| `exercises` | Shared recognition items (choose the word, compare; idioms later) |
 | `metrics` | Dashboard queries and calculations |
 | `events` | Typed event definitions and a single `record_event()` function |
 
@@ -149,7 +149,7 @@ All IDs are UUIDv4 strings generated in Python. Every table holding a user's dat
 | `srs_cards` | `id`, `user_id`, `option_id`, `fsrs_card` (JSON from `Card.to_dict()`), `due_at`, `created_at` | Unique on `(user_id, option_id)`. `due_at` is copied out of the JSON so it can be indexed |
 | `drills` | `id`, `user_id`, `group_id`, `vague_sentence`, `context` (nullable), `intended_option_id`, `intended_word`, `llm_call_id`, `created_at` | Intended option comes from `drill_gen`. `context` is set by prompt v2 and null for older drills |
 | `drill_attempts` | `id`, `drill_id`, `user_id`, `answer`, `grade` (JSON), `score`, `hints_used` (default 0), `llm_call_id`, `created_at` | Hints do not change the score; they are shown with the grade |
-| `exercises` | `id`, `user_id`, `group_id`, `item_type`, `prompt` (JSON), `answer` (JSON), `llm_call_id`, `created_at` | Shared by choose the word, compare and idiom steps. `item_type` starts with `choice`. `prompt` is what the user sees; `answer` is never sent before the attempt |
+| `exercises` | `id`, `user_id`, `group_id`, `item_type`, `prompt` (JSON), `answer` (JSON), `llm_call_id`, `created_at` | Shared by choose the word, compare and idiom steps. `item_type` includes `choice`, `compare_pair`, `compare_misuse`, `compare_order`. `prompt` is what the user sees; `answer` is never sent before the attempt |
 | `exercise_attempts` | `id`, `exercise_id`, `user_id`, `response` (JSON), `correct`, `feedback` (JSON), `created_at` | `correct` comes from a pure grading function per `item_type` |
 
 #### Events and LLM calls
@@ -204,7 +204,7 @@ Copy `.env.example` to `.env`, set the key for the provider you use, and uncomme
 
 #### Structured output
 
-Roles that return JSON (`editor`, `usage_judge`, `drill_gen`, `drill_grade`, `group_gen`, `choice_gen`, `confusable_gen`, `idiom_gen`) define a Pydantic model for the output. The client decides how to request it:
+Roles that return JSON (`editor`, `usage_judge`, `drill_gen`, `drill_grade`, `group_gen`, `choice_gen`, `confusable_gen`, `idiom_gen`, `compare_gen`) define a Pydantic model for the output. The client decides how to request it:
 
 - If `litellm.supports_response_schema(model=..., custom_llm_provider=...)` returns true, pass the Pydantic class as `response_format`.
 - Otherwise pass `response_format={"type": "json_object"}` and put the JSON schema in the prompt.
@@ -339,13 +339,13 @@ Built. The user sees a short situation, a sentence with one blank, and four to s
 
 #### Compare
 
-A compare card shows two to four near-synonyms side by side: the core difference in one sentence, the connotation, the register, typical collocations, and one example sentence per word. For example, *persuade* is about getting someone to act and *convince* is about getting someone to believe. Practice uses three item types:
+Built. A compare card shows two to four near-synonyms side by side: the core difference in one sentence (`sense_gloss`), the connotation, the register, typical collocations, and one example sentence per word. Cards are built from stored lexicon fields only; no LLM call runs when a card is opened. For example, *persuade* is about getting someone to act and *convince* is about getting someone to believe. Practice uses three item types on the shared `exercises` tables:
 
-- A pair of sentences where only one of the words fits each sentence.
-- A sentence that misuses one of the words, where the user names the misused word and the replacement.
-- Ordering a set by strength, such as annoyed, irritated, exasperated, livid.
+- `compare_pair`: a pair of sentences with blanks where only one of the words fits each sentence.
+- `compare_misuse`: a sentence that misuses one of the words; the user names the misused word and the replacement.
+- `compare_order`: ordering a set by `details.strength`, such as annoyed, irritated, exasperated, livid. Offered only when every option has a strength. No LLM call.
 
-Confusable sets are the main source for this mode, and precision groups can be shown as compare cards too.
+`compare_gen` writes `compare_pair` and `compare_misuse` items. A correct attempt records `exercise_answered` and reviews carded options with `Good` and source `exercise`, as in choose the word. Confusable sets are the main source; approved precision groups appear on the compare list too.
 
 #### Idioms
 
@@ -363,11 +363,9 @@ Idiom content is drafted by an `idiom_gen` role and reviewed in the admin page, 
 
 #### Planned tables, events and roles
 
-The shared `exercises` / `exercise_attempts` tables, `exercise_answered`, `card_reviewed.source=exercise` and the `choice_gen` role are built (see "Data model" and "Choose the word"). Compare and the first three idiom steps add more `item_type` values on those tables.
+The shared `exercises` / `exercise_attempts` tables, `exercise_answered`, `card_reviewed.source=exercise`, `choice_gen` and `compare_gen` are built (see "Data model", "Choose the word" and "Compare"). The first three idiom steps add more `item_type` values on those tables, and a later `compare_gen` prompt version.
 
 Lexicon `kind` / nullable `head_lemma` / option `details`, plus `confusable_gen` and `idiom_gen`, are built (see "Data model" and "Precision groups").
-
-New LLM roles still planned: `compare_gen`. It needs a model setting and a prompt version setting like the existing roles.
 
 ## Practice and spaced repetition
 
@@ -378,6 +376,7 @@ Each accepted option becomes an FSRS card for that user. Ratings come from real 
 | The user used the word unprompted and the judge marked it correct | `Good` |
 | The user used the word correctly in a drill | `Good` |
 | The user picked the correct best option in a choose-the-word exercise | `Good` |
+| The user answered a compare exercise correctly (pair, misuse or order) | `Good` on the option(s) the item tested |
 | The judge marked a use incorrect | `Again` |
 | The user rated a card on the review page | The rating they chose |
 

@@ -230,36 +230,69 @@ export const api = {
     }>('/api/exercises/choice', {
       method: 'POST',
     }),
+  listCompareGroups: () =>
+    request<
+      {
+        id: string
+        kind: string
+        sense_gloss: string
+        words: string[]
+        has_strength_order: boolean
+      }[]
+    >('/api/compare'),
+  getCompareCard: (groupId: string) =>
+    request<{
+      id: string
+      kind: string
+      sense_gloss: string
+      pos: string
+      options: {
+        id: string
+        word: string
+        distinction: string
+        example: string
+        register: string
+        collocations: string[]
+        connotation: string | null
+        strength: number | null
+      }[]
+      has_strength_order: boolean
+    }>(`/api/compare/${encodeURIComponent(groupId)}`),
+  createCompareExercise: (
+    groupId: string,
+    itemType: 'compare_pair' | 'compare_misuse' | 'compare_order',
+  ) =>
+    request<{
+      id: string
+      item_type: string
+      prompt: Record<string, unknown>
+    }>('/api/exercises/compare', {
+      method: 'POST',
+      body: JSON.stringify({ group_id: groupId, item_type: itemType }),
+    }),
   getExercise: (exerciseId: string) =>
     request<{
       id: string
       item_type: string
-      prompt: {
-        situation: string
-        sentence: string
-        candidates: { option_id: string; word: string }[]
-      }
+      prompt: Record<string, unknown>
     }>(`/api/exercises/${exerciseId}`),
-  answerExercise: (exerciseId: string, bestOptionId: string, markedOptionIds: string[]) =>
+  answerExercise: (
+    exerciseId: string,
+    body: {
+      best_option_id?: string
+      marked_option_ids?: string[]
+      fits_option_ids?: string[]
+      misused_option_id?: string
+      replacement_option_id?: string
+      ordered_option_ids?: string[]
+    },
+  ) =>
     request<{
       id: string
       correct: boolean
-      feedback: {
-        best_option_id: string
-        user_best_option_id: string
-        candidates: {
-          option_id: string
-          fit: string
-          reason: string
-          best: boolean
-          user_marked: boolean
-        }[]
-      }
+      feedback: Record<string, unknown>
     }>(`/api/exercises/${exerciseId}/attempt`, {
       method: 'POST',
-      body: JSON.stringify({
-        best_option_id: bestOptionId,
-        marked_option_ids: markedOptionIds,
-      }),
+      body: JSON.stringify(body),
     }),
 }

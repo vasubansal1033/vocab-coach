@@ -41,9 +41,9 @@ type ChoiceAttempt = {
   id: string
   correct: boolean
   feedback: {
-    best_option_id: string
-    user_best_option_id: string
-    candidates: {
+    best_option_id?: string
+    user_best_option_id?: string
+    candidates?: {
       option_id: string
       fit: string
       reason: string
@@ -373,8 +373,11 @@ function ChoiceTab() {
     setBusy(true)
     setError(null)
     try {
-      const result = await api.answerExercise(exercise.id, best, marked)
-      setAttempt(result)
+      const result = await api.answerExercise(exercise.id, {
+        best_option_id: best,
+        marked_option_ids: marked,
+      })
+      setAttempt(result as ChoiceAttempt)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed')
     } finally {
@@ -446,7 +449,7 @@ function ChoiceTab() {
                 <strong>{attempt.correct ? 'Correct' : 'Not quite'}</strong>
               </p>
               <ul className="choice-feedback">
-                {attempt.feedback.candidates.map((c) => (
+                {(attempt.feedback.candidates ?? []).map((c) => (
                   <li key={c.option_id}>
                     <strong>{wordById.get(c.option_id) ?? c.option_id}</strong>
                     {c.best ? ' (best)' : ''} · {c.fit}

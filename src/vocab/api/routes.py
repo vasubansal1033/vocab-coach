@@ -17,6 +17,9 @@ from vocab.api.schemas import (
     AcceptIn,
     AccountLimitsOut,
     AccountOut,
+    CompareCardOut,
+    CompareGroupListItemOut,
+    CompareOptionOut,
     ConversationCreateIn,
     ConversationListOut,
     ConversationOut,
@@ -30,11 +33,8 @@ from vocab.api.schemas import (
     DrillWeekOut,
     ExerciseAttemptIn,
     ExerciseAttemptOut,
-    ExerciseFeedbackCandidateOut,
-    ExerciseFeedbackOut,
+    ExerciseCreateCompareIn,
     ExerciseOut,
-    ExercisePromptCandidateOut,
-    ExercisePromptOut,
     FeedbackOut,
     LemmaDetailOut,
     LemmaOptionOut,
@@ -76,8 +76,20 @@ from vocab.drills.service import (
 )
 from vocab.editor.models import Suggestion, SuggestionOption
 from vocab.exercises.models import Exercise, ExerciseAttempt
-from vocab.exercises.schemas import ChoiceResponse
-from vocab.exercises.service import answer_exercise, create_choice
+from vocab.exercises.schemas import (
+    ChoiceResponse,
+    CompareMisuseResponse,
+    CompareOrderResponse,
+    ComparePairResponse,
+)
+from vocab.exercises.service import (
+    answer_exercise,
+    compare_card,
+    create_choice,
+    create_compare,
+    list_compare_groups,
+)
+from vocab.lexicon.models import PrecisionGroup
 from vocab.llm.models import LlmCall
 from vocab.metrics.queries import (
     acceptance_rate,
@@ -696,46 +708,126 @@ def build_router(settings: Settings | None = None) -> APIRouter:
 
     def _exercise_out(exercise: Exercise) -> ExerciseOut:
         prompt = exercise.prompt if isinstance(exercise.prompt, dict) else {}
-        candidates = [
-            ExercisePromptCandidateOut(
-                option_id=str(c.get("option_id", "")),
-                word=str(c.get("word", "")),
-            )
-            for c in prompt.get("candidates", [])
-            if isinstance(c, dict)
-        ]
         return ExerciseOut(
             id=exercise.id,
             item_type=exercise.item_type,
-            prompt=ExercisePromptOut(
-                situation=str(prompt.get("situation", "")),
-                sentence=str(prompt.get("sentence", "")),
-                candidates=candidates,
-            ),
+            prompt=prompt,
         )
 
     def _attempt_out(attempt: ExerciseAttempt) -> ExerciseAttemptOut:
         feedback = attempt.feedback if isinstance(attempt.feedback, dict) else {}
-        candidates = [
-            ExerciseFeedbackCandidateOut(
-                option_id=str(c.get("option_id", "")),
-                fit=str(c.get("fit", "")),
-                reason=str(c.get("reason", "")),
-                best=bool(c.get("best")),
-                user_marked=bool(c.get("user_marked")),
-            )
-            for c in feedback.get("candidates", [])
-            if isinstance(c, dict)
-        ]
         return ExerciseAttemptOut(
             id=attempt.id,
             correct=bool(attempt.correct),
-            feedback=ExerciseFeedbackOut(
-                best_option_id=str(feedback.get("best_option_id", "")),
-                user_best_option_id=str(feedback.get("user_best_option_id", "")),
-                candidates=candidates,
-            ),
+            feedback=feedback,
         )
+
+    def _has_strength_order(group: PrecisionGroup) -> bool:
+        approved = [o for o in group.options if o.status == "approved"]
+        if len(approved) < 2:
+            return False
+        return all(
+            isinstance((o.details or {}).get("strength"), int) for o in approved
+        )
+
+    def _compare_card_out(group: PrecisionGroup) -> CompareCardOut:
+        options: list[CompareOptionOut] = []
+        for opt in group.options:
+            if opt.status != "approved":
+                continue
+            details = opt.details or {}
+            strength = details.get("strength")
+            options.append(
+                CompareOptionOut(
+                    id=opt.id,
+                    word=opt.word,
+                    distinction=opt.distinction,
+                    example=opt.example,
+                    speech_register=opt.register,
+                    collocations=list(details.get("collocations") or []),
+                    connotation=details.get("connotation"),
+                    strength=int(strength) if isinstance(strength, int) else None,
+                )
+            )
+        options.sort(
+            key=lambda o: (o.strength is None, o.strength if o.strength is not None else 0, o.word)
+        )
+        return CompareCardOut(
+            id=group.id,
+            kind=group.kind,
+            sense_gloss=group.sense_gloss,
+            pos=group.pos,
+            options=options,
+            has_strength_order=_has_strength_order(group),
+        )
+
+    def _response_for_attempt(
+        exercise: Exercise, body: ExerciseAttemptIn
+    ) -> (
+        ChoiceResponse
+        | ComparePairResponse
+        | CompareMisuseResponse
+        | CompareOrderResponse
+    ):
+        if exercise.item_type == "choice":
+            if not body.best_option_id:
+                raise HTTPException(status_code=422, detail="best_option_id is required")
+            return ChoiceResponse(
+                best_option_id=body.best_option_id,
+                marked_option_ids=body.marked_option_ids,
+            )
+        if exercise.item_type == "compare_pair":
+            if not body.fits_option_ids or len(body.fits_option_ids) != 2:
+                raise HTTPException(status_code=422, detail="fits_option_ids needs two ids")
+            return ComparePairResponse(fits_option_ids=body.fits_option_ids)
+        if exercise.item_type == "compare_misuse":
+            if not body.misused_option_id or not body.replacement_option_id:
+                raise HTTPException(
+                    status_code=422,
+                    detail="misused_option_id and replacement_option_id are required",
+                )
+            return CompareMisuseResponse(
+                misused_option_id=body.misused_option_id,
+                replacement_option_id=body.replacement_option_id,
+            )
+        if exercise.item_type == "compare_order":
+            if not body.ordered_option_ids:
+                raise HTTPException(status_code=422, detail="ordered_option_ids is required")
+            return CompareOrderResponse(ordered_option_ids=body.ordered_option_ids)
+        raise HTTPException(status_code=400, detail=f"unsupported item_type: {exercise.item_type}")
+
+    @router.get("/compare", response_model=list[CompareGroupListItemOut])
+    def compare_list(
+        user: User = Depends(current_user),
+        session: Session = Depends(get_session),
+    ) -> list[CompareGroupListItemOut]:
+        del user  # auth only
+        rows: list[CompareGroupListItemOut] = []
+        for group in list_compare_groups(session):
+            words = [o.word for o in group.options if o.status == "approved"]
+            rows.append(
+                CompareGroupListItemOut(
+                    id=group.id,
+                    kind=group.kind,
+                    sense_gloss=group.sense_gloss,
+                    words=words,
+                    has_strength_order=_has_strength_order(group),
+                )
+            )
+        return rows
+
+    @router.get("/compare/{group_id}", response_model=CompareCardOut)
+    def compare_get(
+        group_id: str,
+        user: User = Depends(current_user),
+        session: Session = Depends(get_session),
+    ) -> CompareCardOut:
+        del user  # auth only; lexicon is shared
+        try:
+            group = compare_card(session, group_id)
+        except ValueError as exc:
+            raise HTTPException(status_code=404, detail="Not found") from exc
+        return _compare_card_out(group)
 
     @router.post("/exercises/choice", response_model=ExerciseOut)
     async def exercises_choice_create(
@@ -743,6 +835,24 @@ def build_router(settings: Settings | None = None) -> APIRouter:
         session: Session = Depends(get_session),
     ) -> ExerciseOut:
         exercise = await create_choice(session, user_id=user.id, settings=settings)
+        return _exercise_out(exercise)
+
+    @router.post("/exercises/compare", response_model=ExerciseOut)
+    async def exercises_compare_create(
+        body: ExerciseCreateCompareIn,
+        user: User = Depends(current_user),
+        session: Session = Depends(get_session),
+    ) -> ExerciseOut:
+        try:
+            exercise = await create_compare(
+                session,
+                user_id=user.id,
+                group_id=body.group_id,
+                item_type=body.item_type,
+                settings=settings,
+            )
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
         return _exercise_out(exercise)
 
     @router.get("/exercises/{exercise_id}", response_model=ExerciseOut)
@@ -768,14 +878,12 @@ def build_router(settings: Settings | None = None) -> APIRouter:
         if exercise is None:
             raise HTTPException(status_code=404, detail="Not found")
         authorize(user.id, "update", exercise)
+        response = _response_for_attempt(exercise, body)
         attempt = answer_exercise(
             session,
             exercise=exercise,
             user_id=user.id,
-            response=ChoiceResponse(
-                best_option_id=body.best_option_id,
-                marked_option_ids=body.marked_option_ids,
-            ),
+            response=response,
         )
         return _attempt_out(attempt)
 

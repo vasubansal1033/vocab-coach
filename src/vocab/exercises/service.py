@@ -1,14 +1,22 @@
-"""Create and answer shared exercises; choice items first."""
+"""Create and answer shared exercises: choice and compare items."""
 
 from __future__ import annotations
 
+import random
+from typing import Any
+
 from sqlalchemy import select
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, selectinload
 
 from vocab.config import Settings, get_settings
 from vocab.drills.select import select_group
 from vocab.events import ExerciseAnsweredPayload, record_event
-from vocab.exercises.grading import grade_choice
+from vocab.exercises.grading import (
+    grade_choice,
+    grade_compare_misuse,
+    grade_compare_order,
+    grade_compare_pair,
+)
 from vocab.exercises.models import Exercise, ExerciseAttempt
 from vocab.exercises.schemas import (
     ChoiceAnswer,
@@ -17,8 +25,20 @@ from vocab.exercises.schemas import (
     ChoicePrompt,
     ChoicePromptCandidate,
     ChoiceResponse,
+    CompareItemType,
+    CompareMisuseAnswer,
+    CompareMisuseGenOutput,
+    CompareMisusePrompt,
+    CompareMisuseResponse,
+    CompareOrderAnswer,
+    CompareOrderPrompt,
+    CompareOrderResponse,
+    ComparePairAnswer,
+    ComparePairGenOutput,
+    ComparePairPrompt,
+    ComparePairResponse,
 )
-from vocab.lexicon.models import PrecisionGroup
+from vocab.lexicon.models import PrecisionGroup, PrecisionOption
 from vocab.llm.graphs import run_structured_role
 from vocab.llm.models import LlmCall
 from vocab.practice.models import SrsCard
@@ -28,6 +48,7 @@ from vocab.practice.srs import review_card
 def _group_payload(group: PrecisionGroup) -> dict[str, object]:
     return {
         "id": group.id,
+        "kind": group.kind,
         "head_lemma": group.head_lemma,
         "pos": group.pos,
         "sense_gloss": group.sense_gloss,
@@ -36,11 +57,29 @@ def _group_payload(group: PrecisionGroup) -> dict[str, object]:
                 "id": opt.id,
                 "word": opt.word,
                 "distinction": opt.distinction,
+                "example": opt.example,
+                "register": opt.register,
+                "details": opt.details or {},
             }
             for opt in group.options
             if opt.status == "approved"
         ],
     }
+
+
+def _approved_options(group: PrecisionGroup) -> list[PrecisionOption]:
+    return [opt for opt in group.options if opt.status == "approved"]
+
+
+def _option_words(group: PrecisionGroup) -> dict[str, str]:
+    return {opt.id: opt.word for opt in _approved_options(group)}
+
+
+def _prompt_options(group: PrecisionGroup) -> list[ChoicePromptCandidate]:
+    return [
+        ChoicePromptCandidate(option_id=opt.id, word=opt.word)
+        for opt in _approved_options(group)
+    ]
 
 
 def _latest_call_id(session: Session, user_id: str, role: str) -> str | None:
@@ -52,13 +91,22 @@ def _latest_call_id(session: Session, user_id: str, role: str) -> str | None:
     return call.id if call else None
 
 
+def _load_group(session: Session, group_id: str) -> PrecisionGroup:
+    group = session.scalars(
+        select(PrecisionGroup)
+        .where(PrecisionGroup.id == group_id)
+        .options(selectinload(PrecisionGroup.options))
+    ).first()
+    if group is None or group.status != "approved":
+        raise ValueError(f"unknown or unapproved group: {group_id}")
+    if not _approved_options(group):
+        raise ValueError(f"group has no approved options: {group_id}")
+    return group
+
+
 def _validate_choice_ids(group: PrecisionGroup, output: ChoiceGenOutput) -> dict[str, str]:
     """Reject unknown option IDs; return option_id -> word for the prompt."""
-    known = {
-        opt.id: opt.word
-        for opt in group.options
-        if opt.status == "approved"
-    }
+    known = _option_words(group)
     words: dict[str, str] = {}
     for candidate in output.candidates:
         word = known.get(candidate.option_id)
@@ -129,24 +177,211 @@ async def create_choice(
     return exercise
 
 
+def _require_known_ids(known: dict[str, str], *option_ids: str, role: str) -> None:
+    for option_id in option_ids:
+        if option_id not in known:
+            raise ValueError(f"unknown option_id in {role} output: {option_id}")
+
+
+def _create_compare_order(session: Session, *, user_id: str, group: PrecisionGroup) -> Exercise:
+    """Build an order item from details.strength; no LLM call."""
+    scored: list[tuple[int, PrecisionOption]] = []
+    for opt in _approved_options(group):
+        details = opt.details or {}
+        strength = details.get("strength")
+        if strength is None:
+            raise ValueError(f"compare_order requires strength on every option: {group.id}")
+        scored.append((int(strength), opt))
+    scored.sort(key=lambda row: row[0])
+    ordered = [opt for _, opt in scored]
+    prompt_opts = [ChoicePromptCandidate(option_id=opt.id, word=opt.word) for opt in ordered]
+    random.shuffle(prompt_opts)
+    prompt = CompareOrderPrompt(options=prompt_opts)
+    answer = CompareOrderAnswer(ordered_option_ids=[opt.id for opt in ordered])
+    exercise = Exercise(
+        user_id=user_id,
+        group_id=group.id,
+        item_type="compare_order",
+        prompt=prompt.model_dump(),
+        answer=answer.model_dump(),
+        llm_call_id=None,
+    )
+    session.add(exercise)
+    session.commit()
+    session.refresh(exercise)
+    return exercise
+
+
+async def create_compare(
+    session: Session,
+    *,
+    user_id: str,
+    group_id: str,
+    item_type: CompareItemType,
+    settings: Settings | None = None,
+) -> Exercise:
+    """Create a compare exercise for a group; order items need no LLM."""
+    settings = settings or get_settings()
+    group = _load_group(session, group_id)
+    if item_type == "compare_order":
+        return _create_compare_order(session, user_id=user_id, group=group)
+
+    known = _option_words(group)
+    variables = {"group": _group_payload(group), "item_type": item_type}
+
+    if item_type == "compare_pair":
+        result = await run_structured_role(
+            "compare_gen",
+            variables,
+            user_id=user_id,
+            output_model=ComparePairGenOutput,
+            session=session,
+            settings=settings,
+        )
+        assert isinstance(result, ComparePairGenOutput)
+        for sentence in result.sentences:
+            _require_known_ids(known, sentence.fits_option_id, role="compare_gen")
+        prompt = ComparePairPrompt(
+            sentences=[s.text.strip() for s in result.sentences],
+            options=_prompt_options(group),
+        )
+        answer = ComparePairAnswer(
+            fits_option_ids=[s.fits_option_id for s in result.sentences],
+        )
+    elif item_type == "compare_misuse":
+        result = await run_structured_role(
+            "compare_gen",
+            variables,
+            user_id=user_id,
+            output_model=CompareMisuseGenOutput,
+            session=session,
+            settings=settings,
+        )
+        assert isinstance(result, CompareMisuseGenOutput)
+        _require_known_ids(
+            known,
+            result.misused_option_id,
+            result.replacement_option_id,
+            role="compare_gen",
+        )
+        prompt = CompareMisusePrompt(
+            sentence=result.sentence.strip(),
+            options=_prompt_options(group),
+        )
+        answer = CompareMisuseAnswer(
+            misused_option_id=result.misused_option_id,
+            replacement_option_id=result.replacement_option_id,
+            reason=result.reason.strip(),
+        )
+    else:
+        raise ValueError(f"unsupported compare item_type: {item_type}")
+
+    exercise = Exercise(
+        user_id=user_id,
+        group_id=group.id,
+        item_type=item_type,
+        prompt=prompt.model_dump(),
+        answer=answer.model_dump(),
+        llm_call_id=_latest_call_id(session, user_id, "compare_gen"),
+    )
+    session.add(exercise)
+    session.commit()
+    session.refresh(exercise)
+    return exercise
+
+
+def _review_options(session: Session, *, user_id: str, option_ids: list[str]) -> None:
+    """Review each carded option with Good / exercise after a correct attempt."""
+    for option_id in option_ids:
+        card = session.scalars(
+            select(SrsCard).where(
+                SrsCard.user_id == user_id,
+                SrsCard.option_id == option_id,
+            )
+        ).first()
+        if card is not None:
+            review_card(
+                session,
+                user_id=user_id,
+                option_id=option_id,
+                rating="Good",
+                source="exercise",
+            )
+
+
 def answer_exercise(
     session: Session,
     *,
     exercise: Exercise,
     user_id: str,
-    response: ChoiceResponse,
+    response: (
+        ChoiceResponse
+        | ComparePairResponse
+        | CompareMisuseResponse
+        | CompareOrderResponse
+    ),
 ) -> ExerciseAttempt:
-    """Grade a choice response, record the event, and maybe review an SRS card."""
-    if exercise.item_type != "choice":
-        raise ValueError(f"unsupported item_type for answer_exercise: {exercise.item_type}")
-    answer = ChoiceAnswer.model_validate(exercise.answer)
-    grade = grade_choice(answer, response)
+    """Grade a response, record exercise_answered, and maybe review SRS cards."""
+    item_type = exercise.item_type
+    event_option_id: str | None = None
+    review_ids: list[str] = []
+    response_dump: dict[str, Any]
+    feedback_dump: dict[str, Any]
+    correct: bool
+
+    if item_type == "choice":
+        if not isinstance(response, ChoiceResponse):
+            raise ValueError("choice exercises require ChoiceResponse")
+        answer = ChoiceAnswer.model_validate(exercise.answer)
+        grade = grade_choice(answer, response)
+        correct = grade.correct
+        response_dump = response.model_dump()
+        feedback_dump = grade.feedback.model_dump()
+        event_option_id = answer.best_option_id
+        if correct:
+            review_ids = [answer.best_option_id]
+    elif item_type == "compare_pair":
+        if not isinstance(response, ComparePairResponse):
+            raise ValueError("compare_pair exercises require ComparePairResponse")
+        answer = ComparePairAnswer.model_validate(exercise.answer)
+        grade = grade_compare_pair(answer, response)
+        correct = grade.correct
+        response_dump = response.model_dump()
+        feedback_dump = grade.feedback.model_dump()
+        event_option_id = answer.fits_option_ids[0] if answer.fits_option_ids else None
+        if correct:
+            review_ids = list(answer.fits_option_ids)
+    elif item_type == "compare_misuse":
+        if not isinstance(response, CompareMisuseResponse):
+            raise ValueError("compare_misuse exercises require CompareMisuseResponse")
+        answer = CompareMisuseAnswer.model_validate(exercise.answer)
+        grade = grade_compare_misuse(answer, response)
+        correct = grade.correct
+        response_dump = response.model_dump()
+        feedback_dump = grade.feedback.model_dump()
+        event_option_id = answer.replacement_option_id
+        if correct:
+            review_ids = [answer.replacement_option_id]
+    elif item_type == "compare_order":
+        if not isinstance(response, CompareOrderResponse):
+            raise ValueError("compare_order exercises require CompareOrderResponse")
+        answer = CompareOrderAnswer.model_validate(exercise.answer)
+        grade = grade_compare_order(answer, response)
+        correct = grade.correct
+        response_dump = response.model_dump()
+        feedback_dump = grade.feedback.model_dump()
+        event_option_id = None
+        if correct:
+            review_ids = list(answer.ordered_option_ids)
+    else:
+        raise ValueError(f"unsupported item_type for answer_exercise: {item_type}")
+
     attempt = ExerciseAttempt(
         exercise_id=exercise.id,
         user_id=user_id,
-        response=response.model_dump(),
-        correct=grade.correct,
-        feedback=grade.feedback.model_dump(),
+        response=response_dump,
+        correct=correct,
+        feedback=feedback_dump,
     )
     session.add(attempt)
     session.flush()
@@ -157,27 +392,34 @@ def answer_exercise(
         subject_type="exercise_attempt",
         subject_id=attempt.id,
         payload=ExerciseAnsweredPayload(
-            item_type=exercise.item_type,
-            correct=grade.correct,
-            option_id=answer.best_option_id,
+            item_type=item_type,
+            correct=correct,
+            option_id=event_option_id,
         ),
     )
     session.commit()
     session.refresh(attempt)
 
-    if grade.correct:
-        card = session.scalars(
-            select(SrsCard).where(
-                SrsCard.user_id == user_id,
-                SrsCard.option_id == answer.best_option_id,
-            )
-        ).first()
-        if card is not None:
-            review_card(
-                session,
-                user_id=user_id,
-                option_id=answer.best_option_id,
-                rating="Good",
-                source="exercise",
-            )
+    if correct and review_ids:
+        _review_options(session, user_id=user_id, option_ids=review_ids)
     return attempt
+
+
+def list_compare_groups(session: Session) -> list[PrecisionGroup]:
+    """Approved confusable and precision sets available as compare cards."""
+    return list(
+        session.scalars(
+            select(PrecisionGroup)
+            .where(
+                PrecisionGroup.status == "approved",
+                PrecisionGroup.kind.in_(("confusable", "precision")),
+            )
+            .order_by(PrecisionGroup.id)
+            .options(selectinload(PrecisionGroup.options))
+        ).all()
+    )
+
+
+def compare_card(session: Session, group_id: str) -> PrecisionGroup:
+    """Load one approved group for a compare card page."""
+    return _load_group(session, group_id)
