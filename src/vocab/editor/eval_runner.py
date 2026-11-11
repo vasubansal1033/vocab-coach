@@ -15,7 +15,8 @@ from sqlalchemy.orm import Session
 
 from vocab.config import Settings, get_settings
 from vocab.editor.schemas import EditorOutput
-from vocab.lexicon.service import approved_groups_for_lemma, load_seeds
+from vocab.editor.service import build_editor_variables
+from vocab.lexicon.service import load_seeds
 from vocab.llm.graphs import run_structured_role
 from vocab.nlp.analyzer import analyze
 
@@ -59,42 +60,12 @@ async def _run_case(
     settings: Settings,
 ) -> dict[str, Any]:
     analysis = analyze(case.text)
-    lemmas = {span.lemma for span in analysis.candidates}
-    groups = []
-    for lemma in sorted(lemmas):
-        groups.extend(approved_groups_for_lemma(session, lemma))
-    variables = {
-        "message": case.text,
-        "partner_previous": case.partner_previous or "",
-        "candidates": [
-            {
-                "text": span.text,
-                "lemma": span.lemma,
-                "pos": span.pos,
-                "reason": span.reason,
-            }
-            for span in analysis.candidates
-        ],
-        "groups": [
-            {
-                "id": g.id,
-                "head_lemma": g.head_lemma,
-                "pos": g.pos,
-                "sense_gloss": g.sense_gloss,
-                "options": [
-                    {
-                        "id": o.id,
-                        "word": o.word,
-                        "distinction": o.distinction,
-                        "example": o.example,
-                    }
-                    for o in g.options
-                    if o.status == "approved"
-                ],
-            }
-            for g in groups
-        ],
-    }
+    variables = await build_editor_variables(
+        session,
+        message=case.text,
+        analysis=analysis,
+        partner_previous=case.partner_previous,
+    )
     started = time.perf_counter()
     schema_failed = False
     output: EditorOutput | None = None

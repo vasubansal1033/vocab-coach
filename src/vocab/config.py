@@ -34,7 +34,7 @@ class Settings(BaseSettings):
     ollama_api_base: str = "http://localhost:11434"
 
     llm_partner_prompt_version: int = 1
-    llm_editor_prompt_version: int = 3
+    llm_editor_prompt_version: int = 4
     llm_usage_judge_prompt_version: int = 1
     llm_drill_gen_prompt_version: int = 1
     llm_drill_grade_prompt_version: int = 1

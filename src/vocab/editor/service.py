@@ -3,9 +3,10 @@
 from __future__ import annotations
 
 import logging
+from typing import Any
 
 from sqlalchemy import select
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, selectinload
 
 from vocab.config import Settings, get_settings
 from vocab.editor.models import EditorRun, Suggestion, SuggestionOption
@@ -13,11 +14,103 @@ from vocab.editor.schemas import EditorOutput, EditorSuggestion
 from vocab.events import SuggestionShownPayload, record_event
 from vocab.lexicon.models import PrecisionGroup, PrecisionOption, ReviewQueueItem
 from vocab.lexicon.service import approved_groups_for_lemma
+from vocab.lexicon.synonym_api import synonym_hints
 from vocab.llm.graphs import run_structured_role
 from vocab.llm.models import LlmCall
 from vocab.nlp.analyzer import analyze
+from vocab.nlp.types import Analysis
 
 logger = logging.getLogger(__name__)
+
+
+async def build_editor_variables(
+    session: Session,
+    *,
+    message: str,
+    analysis: Analysis,
+    partner_previous: str | None = None,
+    conversation_title: str | None = None,
+    feedback_expectations: str | None = None,
+) -> dict[str, Any]:
+    """Assemble prompt variables, including Datamuse synonym hints."""
+    lemma_pos: list[tuple[str, str | None]] = [
+        (span.lemma, span.pos) for span in analysis.candidates
+    ]
+    lemma_set = {lemma for lemma, _ in lemma_pos}
+    groups: list[PrecisionGroup] = []
+    seen_group_ids: set[str] = set()
+    for lemma in sorted(lemma_set):
+        for group in approved_groups_for_lemma(session, lemma):
+            if group.id not in seen_group_ids:
+                seen_group_ids.add(group.id)
+                groups.append(group)
+
+    hints = await synonym_hints(lemma_pos)
+    # Surface lexicon options that match hint words even when head_lemma differs.
+    hint_words = sorted({w for words in hints.values() for w in words})
+    if hint_words:
+        for group in _approved_groups_for_words(session, hint_words):
+            if group.id not in seen_group_ids:
+                seen_group_ids.add(group.id)
+                groups.append(group)
+    # Put lexicon-overlapping hints first so the model sees strong options early.
+    lexicon_words = {
+        opt.word.lower()
+        for group in groups
+        for opt in group.options
+        if opt.status == "approved"
+    }
+    hints = {
+        lemma: sorted(words, key=lambda w: (0 if w in lexicon_words else 1, words.index(w)))
+        for lemma, words in hints.items()
+    }
+
+    return {
+        "message": message,
+        "partner_previous": partner_previous or "",
+        "conversation_title": conversation_title or "",
+        "feedback_expectations": (feedback_expectations or "").strip(),
+        "candidates": [
+            {
+                "text": span.text,
+                "lemma": span.lemma,
+                "pos": span.pos,
+                "reason": span.reason,
+            }
+            for span in analysis.candidates
+        ],
+        "synonym_hints": hints,
+        "groups": _groups_payload(groups),
+    }
+
+
+def _approved_groups_for_words(session: Session, words: list[str]) -> list[PrecisionGroup]:
+    """Find approved groups that already list any of these option words."""
+    from sqlalchemy import func
+
+    lowered = sorted({w.lower() for w in words})
+    if not lowered:
+        return []
+    options = list(
+        session.scalars(
+            select(PrecisionOption)
+            .where(
+                PrecisionOption.status == "approved",
+                func.lower(PrecisionOption.word).in_(lowered),
+            )
+            .options(selectinload(PrecisionOption.group).selectinload(PrecisionGroup.options))
+        )
+    )
+    groups: list[PrecisionGroup] = []
+    seen: set[str] = set()
+    for opt in options:
+        group = opt.group
+        if group is None or group.status != "approved" or group.id in seen:
+            continue
+        seen.add(group.id)
+        group.options = [o for o in group.options if o.status == "approved"]
+        groups.append(group)
+    return groups
 
 
 def _find_span(message: str, original: str) -> tuple[int, int] | None:
@@ -85,29 +178,14 @@ async def analyze_message(
     """Analyze text, call the editor role, anchor spans, persist suggestions."""
     settings = settings or get_settings()
     analysis = analyze(message)
-
-    lemma_set = {span.lemma for span in analysis.candidates}
-    groups: list[PrecisionGroup] = []
-    for lemma in sorted(lemma_set):
-        groups.extend(approved_groups_for_lemma(session, lemma))
-
-    # Also try surface-form lemmas from crutch hits (fix from fixed).
-    variables = {
-        "message": message,
-        "partner_previous": partner_previous or "",
-        "conversation_title": conversation_title or "",
-        "feedback_expectations": (feedback_expectations or "").strip(),
-        "candidates": [
-            {
-                "text": span.text,
-                "lemma": span.lemma,
-                "pos": span.pos,
-                "reason": span.reason,
-            }
-            for span in analysis.candidates
-        ],
-        "groups": _groups_payload(groups),
-    }
+    variables = await build_editor_variables(
+        session,
+        message=message,
+        analysis=analysis,
+        partner_previous=partner_previous,
+        conversation_title=conversation_title,
+        feedback_expectations=feedback_expectations,
+    )
 
     output = await run_structured_role(
         "editor",

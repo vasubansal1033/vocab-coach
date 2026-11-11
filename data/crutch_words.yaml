@@ -34,3 +34,23 @@
   pos: ADJ
 - lemma: problem
   pos: NOUN
+- lemma: issue
+  pos: NOUN
+- lemma: nice
+  pos: ADJ
+- lemma: important
+  pos: ADJ
+- lemma: okay
+  pos: ADJ
+- lemma: ok
+  pos: ADJ
+- lemma: help
+  pos: VERB
+- lemma: need
+  pos: VERB
+- lemma: want
+  pos: VERB
+- lemma: think
+  pos: VERB
+- lemma: look
+  pos: VERB

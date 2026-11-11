@@ -38,7 +38,7 @@ Library versions in this document were checked on 10 Nov 2026 by installing them
 | Identity | authentik (self-hosted, Docker Compose) | docs version 2026.8 | Login, sign-up and sessions through OpenID Connect |
 | OIDC client | Authlib (Starlette integration) | 1.9.5 | Authorization code flow handled on the server, with the session in a signed cookie |
 | NLP | spaCy with `en_core_web_sm` | 3.8.18 | Tokens, lemmas and parts of speech |
-| Lexical data | NLTK WordNet 3.0 | NLTK 3.10.4 | Synonym candidates and part-of-speech checks, offline |
+| Lexical data | NLTK WordNet 3.0 + Free Dictionary API + Datamuse | NLTK 3.10.4 / httpx | WordNet for senses and POS checks offline; free synonym APIs for editor prompt hints |
 | Word frequency | wordfreq | 3.1.1 | Zipf frequency for spotting very common words and for the overuse baseline |
 | Spaced repetition | fsrs | 6.3.2 | FSRS scheduler; `Card.to_dict()` and `Card.from_dict()` make storage in a JSON column simple |
 | Tests | pytest | 9.2.0 | |
@@ -93,7 +93,7 @@ The user is in a conversation. The partner's last message was "How did the datab
 
 **Step 3: look up precision groups.** For each candidate lemma, the app loads approved groups from `precision_groups` with their options. For `fix` it finds group `fix.repair` with options `resolve`, `patch`, `work around` and `mitigate`, each with its distinction and an example.
 
-**Step 4: run the editor.** The `llm` module calls the `editor` role with the active editor prompt (currently `editor.v3`), passing the message, the conversation title, optional feedback expectations, the partner's previous message, the candidate spans and the candidate groups. Feedback expectations are set when the user starts the conversation and tell the editor what specialized register or terms matter for this situation. The response is validated against the `EditorOutput` schema (see "Editor contract"). The call is recorded in `llm_calls` and the validated output in `editor_runs`.
+**Step 4: run the editor.** The app fetches free synonym hints (Free Dictionary API plus Datamuse) for each candidate lemma (soft-fail if the network is down). Those hints also pull in any approved precision groups whose options match a hint word, so the model sees more of the lexicon than head-lemma lookup alone. Then the `llm` module calls the `editor` role with the active editor prompt (currently `editor.v4`), passing the message, the conversation title, optional feedback expectations, the partner's previous message, the candidate spans, the synonym hints and the candidate groups. Feedback expectations are set when the user starts the conversation and tell the editor what specialized register or terms matter for this situation. The response is validated against the `EditorOutput` schema (see "Editor contract"). The call is recorded in `llm_calls` and the validated output in `editor_runs`.
 
 **Step 5: anchor the suggestions.** The model returns the exact text of each span it wants to change (`"really hard"`, `"fixed it in the end"`). The app finds each string in the message and stores the character offsets itself. A suggestion whose text cannot be found in the message is dropped and logged, because a model cannot be trusted to count characters. The editor returned three suggestions, but the app keeps the first two because of the per-message limit.
 
@@ -221,7 +221,8 @@ LiteLLM's `completion` accepts `mock_response`, which returns the given text wit
 - The user's message.
 - The partner's previous message, for context.
 - Candidate spans from the analyzer: text, lemma, part of speech, and why each was marked.
-- Approved precision groups for the candidate lemmas, with each option's word, distinction and example.
+- Synonym hints from free APIs for those lemmas (optional inspiration; never shown raw to the user).
+- Approved precision groups for the candidate lemmas (plus groups matched via hint words), with each option's word, distinction and example.
 
 #### Output schema
 
@@ -266,7 +267,8 @@ The schema allows three suggestions so the app can drop one that fails anchoring
 - Every option must fit the sentence grammatically and keep the user's intended meaning.
 - When the right option depends on facts the message does not give, ask a question instead of guessing.
 - Prefer options from the supplied groups. Propose a new word only when none of them fits, and set `option_id` to null.
-- Return at most three suggestions, most useful first.
+- Treat synonym-API hints as optional inspiration, not a list to copy.
+- When two or more candidate spans are vague in context, return two suggestions on different originals (three max).
 - `original` must be copied exactly from the message.
 
 #### Usage judge
@@ -309,6 +311,8 @@ groups:
 The lexicon grows in two ways. A command (`uv run vocab lexicon draft <lemma>`) asks the `group_gen` role for draft groups, using WordNet senses for the lemma as input, and writes them with `status=draft` for review. Editor proposals with `option_id` null go into `review_queue`. An admin page lists drafts and queued proposals with approve, edit and reject actions. Only approved groups are given to the editor.
 
 WordNet is used for candidate senses and for checking that a proposed word exists with the right part of speech. It is not used as the source of suggestions, because its synonym lists are context-free: for "fix" they include "cook", "pickle" and "desex", and they do not include "resolve", "remedy", "rectify" or "mitigate" (checked against WordNet 3.0 through NLTK 3.10.4).
+
+Free Dictionary API (`dictionaryapi.dev`) and Datamuse (`api.datamuse.com`) supply synonym *hints* into the editor prompt the same way: the model must still choose words that fit the sentence, prefer approved precision groups, and never dump the hint list. If both are unreachable the editor still runs with empty hints.
 
 ## Planned practice modes
 

@@ -29,7 +29,13 @@ class EditorOutput(BaseModel):
         default="",
         description="One or two sentences on how the whole message reads and its main vagueness",
     )
-    suggestions: list[EditorSuggestion] = Field(max_length=3)
+    suggestions: list[EditorSuggestion] = Field(
+        max_length=3,
+        description=(
+            "Vague spots to rewrite, most useful first. Prefer two different "
+            "originals when the message has more than one vague candidate."
+        ),
+    )
     keep: list[str] = Field(
         description="Words that looked like candidates but are already the right word"
     )

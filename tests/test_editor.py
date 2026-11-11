@@ -21,8 +21,18 @@ from vocab.llm.fake import FakeLLM
 
 
 @pytest.fixture(autouse=True)
-def _clear_fake() -> None:
+def _clear_fake(monkeypatch: pytest.MonkeyPatch) -> None:
     use_fake(None)
+
+    async def _no_network_hints(
+        lemmas: list[tuple[str, str | None]],
+        *,
+        timeout: float = 2.0,
+    ) -> dict[str, list[str]]:
+        _ = lemmas, timeout
+        return {"fix": ["repair", "resolve", "patch"]}
+
+    monkeypatch.setattr("vocab.editor.service.synonym_hints", _no_network_hints)
     yield
     use_fake(None)
 
@@ -33,7 +43,7 @@ def settings() -> Settings:
         _env_file=None,
         session_secret="test",
         llm_editor_model="fake-editor",
-        llm_editor_prompt_version=3,
+        llm_editor_prompt_version=4,
         editor_max_suggestions=2,
     )
 
