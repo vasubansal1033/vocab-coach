@@ -1,4 +1,4 @@
-"""Create and answer shared exercises: choice and compare items."""
+"""Create and answer shared exercises: choice, compare, and idiom items."""
 
 from __future__ import annotations
 
@@ -16,6 +16,7 @@ from vocab.exercises.grading import (
     grade_compare_misuse,
     grade_compare_order,
     grade_compare_pair,
+    grade_idiom_select,
 )
 from vocab.exercises.models import Exercise, ExerciseAttempt
 from vocab.exercises.schemas import (
@@ -37,10 +38,23 @@ from vocab.exercises.schemas import (
     ComparePairGenOutput,
     ComparePairPrompt,
     ComparePairResponse,
+    IdiomItemType,
+    IdiomLlmItemType,
+    IdiomMeaningGenOutput,
+    IdiomRecogniseGenOutput,
+    IdiomSelectAnswer,
+    IdiomSelectPrompt,
+    IdiomSelectResponse,
+    IdiomSituationGenOutput,
+    IdiomWriteAnswer,
+    IdiomWriteFeedback,
+    IdiomWritePrompt,
+    IdiomWriteResponse,
 )
 from vocab.lexicon.models import PrecisionGroup, PrecisionOption
 from vocab.llm.graphs import run_structured_role
 from vocab.llm.models import LlmCall
+from vocab.practice.judge import judge_usage
 from vocab.practice.models import SrsCard
 from vocab.practice.srs import review_card
 
@@ -319,6 +333,7 @@ def answer_exercise(
         | ComparePairResponse
         | CompareMisuseResponse
         | CompareOrderResponse
+        | IdiomSelectResponse
     ),
 ) -> ExerciseAttempt:
     """Grade a response, record exercise_answered, and maybe review SRS cards."""
@@ -373,6 +388,17 @@ def answer_exercise(
         event_option_id = None
         if correct:
             review_ids = list(answer.ordered_option_ids)
+    elif item_type in ("idiom_recognise", "idiom_meaning", "idiom_situation"):
+        if not isinstance(response, IdiomSelectResponse):
+            raise ValueError(f"{item_type} exercises require IdiomSelectResponse")
+        answer = IdiomSelectAnswer.model_validate(exercise.answer)
+        grade = grade_idiom_select(answer, response)
+        correct = grade.correct
+        response_dump = response.model_dump()
+        feedback_dump = grade.feedback.model_dump()
+        event_option_id = answer.option_id
+        if correct:
+            review_ids = [answer.option_id]
     else:
         raise ValueError(f"unsupported item_type for answer_exercise: {item_type}")
 
@@ -405,6 +431,217 @@ def answer_exercise(
     return attempt
 
 
+def _load_idiom_group(session: Session, group_id: str) -> PrecisionGroup:
+    group = _load_group(session, group_id)
+    if group.kind != "idiom":
+        raise ValueError(f"group is not an idiom set: {group_id}")
+    return group
+
+
+def _load_option(session: Session, option_id: str) -> PrecisionOption:
+    opt = session.get(PrecisionOption, option_id)
+    if opt is None or opt.status != "approved":
+        raise ValueError(f"unknown or unapproved option: {option_id}")
+    return opt
+
+
+def _idiom_word(group: PrecisionGroup, option_id: str) -> str:
+    known = _option_words(group)
+    word = known.get(option_id)
+    if word is None:
+        raise ValueError(f"unknown option_id in idiom group: {option_id}")
+    return word
+
+
+def create_idiom_write(
+    session: Session,
+    *,
+    user_id: str,
+    option_id: str,
+) -> Exercise:
+    """Step 4: prompt the user to write a sentence; graded later by usage_judge."""
+    opt = _load_option(session, option_id)
+    group = session.get(PrecisionGroup, opt.group_id)
+    if group is None or group.kind != "idiom" or group.status != "approved":
+        raise ValueError(f"option is not on an approved idiom group: {option_id}")
+    details = opt.details or {}
+    meaning = str(details.get("meaning") or opt.distinction).strip()
+    avoid_when = str(details.get("avoid_when") or "").strip()
+    if not meaning:
+        raise ValueError(f"idiom option missing meaning: {option_id}")
+    prompt = IdiomWritePrompt(
+        option_id=opt.id,
+        word=opt.word,
+        meaning=meaning,
+        avoid_when=avoid_when,
+    )
+    answer = IdiomWriteAnswer(option_id=opt.id, word=opt.word, meaning=meaning)
+    exercise = Exercise(
+        user_id=user_id,
+        group_id=group.id,
+        item_type="idiom_write",
+        prompt=prompt.model_dump(),
+        answer=answer.model_dump(),
+        llm_call_id=None,
+    )
+    session.add(exercise)
+    session.commit()
+    session.refresh(exercise)
+    return exercise
+
+
+async def create_idiom(
+    session: Session,
+    *,
+    user_id: str,
+    group_id: str,
+    item_type: IdiomItemType,
+    option_id: str | None = None,
+    settings: Settings | None = None,
+) -> Exercise:
+    """Create an idiom exercise; write items need no LLM, others use compare_gen."""
+    settings = settings or get_settings()
+    if item_type == "idiom_write":
+        if not option_id:
+            group = _load_idiom_group(session, group_id)
+            approved = _approved_options(group)
+            option_id = approved[0].id
+        return create_idiom_write(session, user_id=user_id, option_id=option_id)
+
+    group = _load_idiom_group(session, group_id)
+    known = _option_words(group)
+    llm_type: IdiomLlmItemType = item_type  # type: ignore[assignment]
+    variables = {"group": _group_payload(group), "item_type": llm_type}
+
+    if item_type == "idiom_recognise":
+        result = await run_structured_role(
+            "compare_gen",
+            variables,
+            user_id=user_id,
+            output_model=IdiomRecogniseGenOutput,
+            session=session,
+            settings=settings,
+        )
+        assert isinstance(result, IdiomRecogniseGenOutput)
+        _require_known_ids(known, result.option_id, role="compare_gen")
+        prompt = IdiomSelectPrompt(
+            stem=result.paragraph.strip(),
+            word=None,
+            choices=list(result.choices),
+        )
+        answer = IdiomSelectAnswer(correct_id=result.option_id, option_id=result.option_id)
+    elif item_type == "idiom_meaning":
+        result = await run_structured_role(
+            "compare_gen",
+            variables,
+            user_id=user_id,
+            output_model=IdiomMeaningGenOutput,
+            session=session,
+            settings=settings,
+        )
+        assert isinstance(result, IdiomMeaningGenOutput)
+        _require_known_ids(known, result.option_id, role="compare_gen")
+        word = _idiom_word(group, result.option_id)
+        prompt = IdiomSelectPrompt(
+            stem="Which meaning fits this idiom?",
+            word=word,
+            choices=list(result.choices),
+        )
+        answer = IdiomSelectAnswer(correct_id=result.correct_id, option_id=result.option_id)
+    elif item_type == "idiom_situation":
+        result = await run_structured_role(
+            "compare_gen",
+            variables,
+            user_id=user_id,
+            output_model=IdiomSituationGenOutput,
+            session=session,
+            settings=settings,
+        )
+        assert isinstance(result, IdiomSituationGenOutput)
+        _require_known_ids(known, result.option_id, role="compare_gen")
+        word = _idiom_word(group, result.option_id)
+        prompt = IdiomSelectPrompt(
+            stem="Which situation fits this idiom best?",
+            word=word,
+            choices=list(result.choices),
+        )
+        answer = IdiomSelectAnswer(correct_id=result.correct_id, option_id=result.option_id)
+    else:
+        raise ValueError(f"unsupported idiom item_type: {item_type}")
+
+    exercise = Exercise(
+        user_id=user_id,
+        group_id=group.id,
+        item_type=item_type,
+        prompt=prompt.model_dump(),
+        answer=answer.model_dump(),
+        llm_call_id=_latest_call_id(session, user_id, "compare_gen"),
+    )
+    session.add(exercise)
+    session.commit()
+    session.refresh(exercise)
+    return exercise
+
+
+async def answer_idiom_write(
+    session: Session,
+    *,
+    exercise: Exercise,
+    user_id: str,
+    response: IdiomWriteResponse,
+    settings: Settings | None = None,
+) -> ExerciseAttempt:
+    """Grade a written sentence with usage_judge using the idiom meaning."""
+    if exercise.item_type != "idiom_write":
+        raise ValueError("answer_idiom_write requires idiom_write")
+    settings = settings or get_settings()
+    answer = IdiomWriteAnswer.model_validate(exercise.answer)
+    sentence = response.sentence.strip()
+    if not sentence:
+        raise ValueError("sentence must not be empty")
+    judge, _call_id = await judge_usage(
+        session,
+        user_id=user_id,
+        sentence=sentence,
+        word=answer.word,
+        distinction=answer.meaning,
+        settings=settings,
+    )
+    correct = bool(judge.correct)
+    feedback = IdiomWriteFeedback(
+        correct=correct,
+        explanation=judge.explanation,
+        option_id=answer.option_id,
+        word=answer.word,
+    )
+    attempt = ExerciseAttempt(
+        exercise_id=exercise.id,
+        user_id=user_id,
+        response=response.model_dump(),
+        correct=correct,
+        feedback=feedback.model_dump(),
+    )
+    session.add(attempt)
+    session.flush()
+    record_event(
+        session,
+        user_id=user_id,
+        type="exercise_answered",
+        subject_type="exercise_attempt",
+        subject_id=attempt.id,
+        payload=ExerciseAnsweredPayload(
+            item_type="idiom_write",
+            correct=correct,
+            option_id=answer.option_id,
+        ),
+    )
+    session.commit()
+    session.refresh(attempt)
+    if correct:
+        _review_options(session, user_id=user_id, option_ids=[answer.option_id])
+    return attempt
+
+
 def list_compare_groups(session: Session) -> list[PrecisionGroup]:
     """Approved confusable and precision sets available as compare cards."""
     return list(
@@ -420,6 +657,26 @@ def list_compare_groups(session: Session) -> list[PrecisionGroup]:
     )
 
 
+def list_idiom_groups(session: Session) -> list[PrecisionGroup]:
+    """Approved idiom sets for the idioms page."""
+    return list(
+        session.scalars(
+            select(PrecisionGroup)
+            .where(
+                PrecisionGroup.status == "approved",
+                PrecisionGroup.kind == "idiom",
+            )
+            .order_by(PrecisionGroup.id)
+            .options(selectinload(PrecisionGroup.options))
+        ).all()
+    )
+
+
 def compare_card(session: Session, group_id: str) -> PrecisionGroup:
     """Load one approved group for a compare card page."""
     return _load_group(session, group_id)
+
+
+def idiom_card(session: Session, group_id: str) -> PrecisionGroup:
+    """Load one approved idiom group for the idiom card page."""
+    return _load_idiom_group(session, group_id)

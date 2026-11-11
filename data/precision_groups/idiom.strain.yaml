@@ -1,0 +1,19 @@
+kind: idiom
+head_lemma: strain
+groups:
+- id: idiom.strain
+  pos: ADJ
+  sense_gloss: requiring enormous strength
+  options:
+  - word: Herculean
+    distinction: requiring extraordinary effort or strength
+    example: Cleaning the legacy backlog was a Herculean effort.
+    register: neutral
+    details:
+      meaning: extremely demanding in labour or courage
+      tier: literary
+      region: common
+      variants: []
+      misuse_example: A Herculean statue in the lobby.
+      avoid_when: when the work is ordinary effort
+      origin: Named for Hercules and his twelve labours of immense difficulty.

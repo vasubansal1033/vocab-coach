@@ -1,0 +1,20 @@
+kind: idiom
+head_lemma: task
+groups:
+- id: idiom.task
+  pos: NOUN
+  sense_gloss: endless labour that never finishes
+  options:
+  - word: Sisyphean task
+    distinction: endless work that resets before it finishes
+    example: Manual spreadsheet syncs every morning are a Sisyphean task.
+    register: neutral
+    details:
+      meaning: labour that must be repeated forever without lasting result
+      tier: literary
+      region: common
+      variants: []
+      misuse_example: Calling any long meeting Sisyphean without the reset pattern.
+      avoid_when: when the work has a clear end state
+      origin: Sisyphus was condemned to roll a boulder uphill only to watch it fall
+        forever.

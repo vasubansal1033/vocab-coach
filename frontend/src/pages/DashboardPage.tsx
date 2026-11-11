@@ -122,6 +122,10 @@ export default function DashboardPage() {
               <strong>{pct(data.misuse)}</strong>
             </div>
             <div className="metric">
+              <InfoTip label="Idiom misuse" definition={METRIC_DEFINITIONS.idiomMisuse} />
+              <strong>{pct(data.idiom_misuse)}</strong>
+            </div>
+            <div className="metric">
               <InfoTip label="MTLD" definition={METRIC_DEFINITIONS.mtld} />
               <strong>{data.mtld == null ? '—' : data.mtld.toFixed(1)}</strong>
             </div>

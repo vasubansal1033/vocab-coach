@@ -326,8 +326,25 @@ def spontaneous_correct_use(
     return successes / len(accepts)
 
 
-def misuse_rate(session: Session, user_id: str, start: datetime, end: datetime) -> float | None:
-    events = list(
+def _idiom_option_ids(session: Session, option_ids: set[str]) -> set[str]:
+    """Return the subset of option_ids that belong to idiom groups."""
+    if not option_ids:
+        return set()
+    rows = session.execute(
+        select(PrecisionOption.id)
+        .join(PrecisionGroup, PrecisionGroup.id == PrecisionOption.group_id)
+        .where(
+            PrecisionOption.id.in_(option_ids),
+            PrecisionGroup.kind == "idiom",
+        )
+    ).all()
+    return {row[0] for row in rows}
+
+
+def _word_used_events(
+    session: Session, user_id: str, start: datetime, end: datetime
+) -> list[Event]:
+    return list(
         session.scalars(
             select(Event).where(
                 Event.user_id == user_id,
@@ -337,10 +354,46 @@ def misuse_rate(session: Session, user_id: str, start: datetime, end: datetime) 
             )
         )
     )
-    if not events:
+
+
+def misuse_rate(session: Session, user_id: str, start: datetime, end: datetime) -> float | None:
+    """Misuse among non-idiom word_used events; idioms have their own rate."""
+    events = _word_used_events(session, user_id, start, end)
+    option_ids = {
+        oid
+        for e in events
+        if (oid := (e.payload or {}).get("option_id")) and isinstance(oid, str)
+    }
+    idiom_ids = _idiom_option_ids(session, option_ids)
+    non_idiom = [
+        e
+        for e in events
+        if (e.payload or {}).get("option_id") not in idiom_ids
+    ]
+    if not non_idiom:
         return None
-    wrong = sum(1 for e in events if (e.payload or {}).get("correct") is False)
-    return wrong / len(events)
+    wrong = sum(1 for e in non_idiom if (e.payload or {}).get("correct") is False)
+    return wrong / len(non_idiom)
+
+
+def idiom_misuse_rate(
+    session: Session, user_id: str, start: datetime, end: datetime
+) -> float | None:
+    """Misuse among idiom word_used events only."""
+    events = _word_used_events(session, user_id, start, end)
+    option_ids = {
+        oid
+        for e in events
+        if (oid := (e.payload or {}).get("option_id")) and isinstance(oid, str)
+    }
+    idiom_ids = _idiom_option_ids(session, option_ids)
+    idiom_events = [
+        e for e in events if (e.payload or {}).get("option_id") in idiom_ids
+    ]
+    if not idiom_events:
+        return None
+    wrong = sum(1 for e in idiom_events if (e.payload or {}).get("correct") is False)
+    return wrong / len(idiom_events)
 
 
 def drill_score_weekly(

@@ -1,0 +1,18 @@
+kind: idiom
+head_lemma: advantage
+groups:
+- id: idiom.advantage
+  pos: NOUN
+  sense_gloss: a controlling position in a contest
+  options:
+  - word: upper hand
+    distinction: the stronger position in a negotiation or conflict
+    example: Having the only compatible vendor gave us the upper hand.
+    register: neutral
+    details:
+      meaning: control or advantage over the other side
+      tier: everyday
+      region: common
+      variants: []
+      misuse_example: Raise your upper hand above your head.
+      avoid_when: when both sides are equal and no leverage exists

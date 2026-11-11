@@ -604,13 +604,13 @@ The user learns everyday idioms for workplace writing in steps, from recognition
 - Step 4 (write your own sentence) calls the existing `usage_judge` with the idiom's `details.meaning` as the distinction. No new grading role.
 - Step 5 is the existing unprompted-use detection, with no new code.
 - The editor gets idiom groups only when `conversations.allow_idioms` is true and no `suggestion_shown` event in that conversation points to an idiom group. This filter is done in Python before the editor call, not left to the prompt.
-- Idiom suggestions need a new editor prompt version (`editor.v4.md`), because v3 does not describe idiom groups. The default `llm_editor_prompt_version` changes to 4 only after the eval shows no regression.
+- Idiom suggestions need a new editor prompt version (`editor.v5.md`), because v4 covers synonym hints and does not describe idiom groups. The default `llm_editor_prompt_version` changes to 5 after unit/FakeLLM checks; live model eval remains when `RUN_LLM_TESTS=1`.
 
 #### Files to change
 
 - `data/precision_groups/`: about thirty reviewed everyday idioms in `idiom.<head_lemma>` groups, drafted with `idiom_gen`. None of them has a pronoun slot.
 - `src/vocab/exercises/`: idiom item schemas and grading.
-- `src/vocab/prompts/compare_gen.v2.md` and `src/vocab/prompts/editor.v4.md`.
+- `src/vocab/prompts/compare_gen.v2.md` and `src/vocab/prompts/editor.v5.md` (do not overwrite `editor.v4.md`).
 - `src/vocab/editor/service.py` `analyze_message()`: add idiom groups under the rule above.
 - `evals/editor_gold.yaml`: at least five idiom cases (two where an idiom fits, three where it must not be suggested).
 - `src/vocab/metrics/queries.py`: `idiom_misuse_rate()`; `misuse_rate()` excludes idiom options. `src/vocab/api/routes.py` dashboard output and `frontend/src/pages/DashboardPage.tsx`.
@@ -618,16 +618,16 @@ The user learns everyday idioms for workplace writing in steps, from recognition
 
 #### Tasks
 
-- [ ] Seed and review thirty everyday idioms.
-- [ ] Idiom page with steps 1 to 4.
-- [ ] Editor idiom filter, `editor.v4.md`, gold cases, and an eval run with v3 and v4 compared.
-- [ ] Separate idiom misuse rate on the dashboard.
-- [ ] Literary tier: about twenty idioms with `origin`, shown on the idiom card.
+- [x] Seed and review thirty everyday idioms.
+- [x] Idiom page with steps 1 to 4.
+- [x] Editor idiom filter, `editor.v5.md`, gold cases, and FakeLLM v3 vs v5 compare (live eval remaining).
+- [x] Separate idiom misuse rate on the dashboard.
+- [x] Literary tier: about twenty idioms with `origin`, shown on the idiom card.
 
 #### Done when
 
 - An idiom accepted from a suggestion and later used unprompted and correctly produces a `word_used` event with `prompted=false` and a `Good` review.
-- `uv run vocab eval editor --prompt-version 4` scores no lower than `--prompt-version 3` on the existing (non-idiom) gold cases. Both result files are committed under `evals/results/`.
+- `uv run vocab eval editor --prompt-version 5` scores no lower than `--prompt-version 3` on the existing (non-idiom) gold cases. Both result files are committed under `evals/results/` when run with a real model (`RUN_LLM_TESTS=1`). FakeLLM coverage and a results README note the remaining live eval.
 - A unit test shows that the editor input contains no idiom groups when `allow_idioms` is false, or after one idiom suggestion was shown in that conversation.
 - `uv run pytest`, `uv run ruff check .` and `npm run build` pass.
 

@@ -1,0 +1,20 @@
+kind: idiom
+head_lemma: greed
+groups:
+- id: idiom.greed
+  pos: NOUN
+  sense_gloss: success that turns everything to profit
+  options:
+  - word: Midas touch
+    distinction: a gift for making everything profitable, sometimes too much
+    example: Her Midas touch turned every side project into revenue.
+    register: neutral
+    details:
+      meaning: an ability to make ventures succeed financially
+      tier: literary
+      region: common
+      variants: []
+      misuse_example: The Midas touch exhibit about King Midas.
+      avoid_when: when luck, not skill, explains the wins
+      origin: King Midas wished that all he touched would turn to gold, then could
+        not eat.

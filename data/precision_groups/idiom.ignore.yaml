@@ -1,0 +1,18 @@
+kind: idiom
+head_lemma: ignore
+groups:
+- id: idiom.ignore
+  pos: VERB
+  sense_gloss: deliberately overlook a fault
+  options:
+  - word: turn a blind eye
+    distinction: choose not to notice something wrong
+    example: Leadership turned a blind eye to the skipped reviews.
+    register: neutral
+    details:
+      meaning: deliberately ignore a problem or rule breach
+      tier: everyday
+      region: common
+      variants: []
+      misuse_example: Turn a blind eye toward the bright light.
+      avoid_when: when you must report or stop the issue

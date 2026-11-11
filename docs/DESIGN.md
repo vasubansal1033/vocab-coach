@@ -95,7 +95,7 @@ The user is in a conversation. The partner's last message was "How did the datab
 
 **Step 3: look up precision groups.** For each candidate lemma, the app loads approved groups from `precision_groups` with their options. For `fix` it finds group `fix.repair` with options `resolve`, `patch`, `work around` and `mitigate`, each with its distinction and an example.
 
-**Step 4: run the editor.** The app fetches free synonym hints (Free Dictionary API plus Datamuse) for each candidate lemma (soft-fail if the network is down). Those hints also pull in any approved precision groups whose options match a hint word, so the model sees more of the lexicon than head-lemma lookup alone. Then the `llm` module calls the `editor` role with the active editor prompt (currently `editor.v4`), passing the message, the conversation title, optional feedback expectations, the partner's previous message, the candidate spans, the synonym hints and the candidate groups. Feedback expectations are set when the user starts the conversation and tell the editor what specialized register or terms matter for this situation. The response is validated against the `EditorOutput` schema (see "Editor contract"). The call is recorded in `llm_calls` and the validated output in `editor_runs`.
+**Step 4: run the editor.** The app fetches free synonym hints (Free Dictionary API plus Datamuse) for each candidate lemma (soft-fail if the network is down). Those hints also pull in any approved precision groups whose options match a hint word, so the model sees more of the lexicon than head-lemma lookup alone. Then the `llm` module calls the `editor` role with the active editor prompt (currently `editor.v5`), passing the message, the conversation title, optional feedback expectations, the partner's previous message, the candidate spans, the synonym hints and the candidate groups (precision always; idioms only when `allow_idioms` is on and no idiom suggestion has been shown in that conversation yet). Feedback expectations are set when the user starts the conversation and tell the editor what specialized register or terms matter for this situation. The response is validated against the `EditorOutput` schema (see "Editor contract"). The call is recorded in `llm_calls` and the validated output in `editor_runs`.
 
 **Step 5: anchor the suggestions.** The model returns the exact text of each span it wants to change (`"really hard"`, `"fixed it in the end"`). The app finds each string in the message and stores the character offsets itself. A suggestion whose text cannot be found in the message is dropped and logged, because a model cannot be trusted to count characters. The editor returned three suggestions, but the app keeps the first two because of the per-message limit.
 
@@ -288,7 +288,7 @@ The partner holds a natural conversation. Its system prompt includes a topic or 
 
 ## Precision groups
 
-The lexicon holds three kinds of word set in the same tables: precision groups (vague head lemma to precise options), confusable sets (near-synonyms with no vague head), and idiom sets (phrases grouped by the plain word they can replace). Queries that feed the editor or rewrite drills filter on `kind="precision"`. Idiom groups reach the editor only under the limits in "Idioms" (not built yet). Cards, usage detection and metrics keep working on `option_id` for every kind.
+The lexicon holds three kinds of word set in the same tables: precision groups (vague head lemma to precise options), confusable sets (near-synonyms with no vague head), and idiom sets (phrases grouped by the plain word they can replace). Queries that feed the editor or rewrite drills filter on `kind="precision"`. Idiom groups reach the editor only under the limits in "Idioms". Cards, usage detection and metrics keep working on `option_id` for every kind.
 
 Groups are seeded from YAML files in `data/precision_groups/`. A missing top-level `kind` means `precision`. Confusable files use ids such as `confusable.imply-infer` and leave `head_lemma` empty. Idiom files use ids such as `idiom.agree` and set `head_lemma` to the plain word.
 
@@ -323,7 +323,7 @@ Option `details` by kind:
 - Confusable: `collocations` (list of strings), `connotation` (`positive`, `neutral`, `negative`), optional `strength` (integer when the set has a natural order).
 - Idiom: `meaning`, `tier` (`everyday` or `literary`), `region` (`common`, `uk`, `us`), `variants`, `misuse_example`, `avoid_when`, and for literary idioms a one-sentence `origin`. The option `word` holds the idiom in base form ("cut corners"); lemma matching covers inflected forms such as "cutting corners".
 
-The lexicon grows in three ways. `uv run vocab lexicon draft <lemma>` asks `group_gen` for precision drafts. `uv run vocab lexicon draft --kind confusable --words imply,infer` asks `confusable_gen`, and `--kind idiom --lemma agree` asks `idiom_gen`. Editor proposals with `option_id` null go into `review_queue`. An admin page lists drafts, approved sets (with kind and details) and queued proposals with approve, edit and reject actions. Only approved precision groups are given to the editor today.
+The lexicon grows in three ways. `uv run vocab lexicon draft <lemma>` asks `group_gen` for precision drafts. `uv run vocab lexicon draft --kind confusable --words imply,infer` asks `confusable_gen`, and `--kind idiom --lemma agree` asks `idiom_gen`. Editor proposals with `option_id` null go into `review_queue`. An admin page lists drafts, approved sets (with kind and details) and queued proposals with approve, edit and reject actions. Approved precision groups are always given to the editor; idiom groups are added only under the limits in "Idioms".
 
 WordNet is used for candidate senses and for checking that a proposed word exists with the right part of speech. It is not used as the source of suggestions, because its synonym lists are context-free: for "fix" they include "cook", "pickle" and "desex", and they do not include "resolve", "remedy", "rectify" or "mitigate" (checked against WordNet 3.0 through NLTK 3.10.4).
 
@@ -331,7 +331,7 @@ Free Dictionary API (`dictionaryapi.dev`) and Datamuse (`api.datamuse.com`) supp
 
 ## Planned practice modes
 
-This section describes features that are planned in `docs/PLAN.md` but not built yet. They all reuse the lexicon, the FSRS cards and the event log, so a word learned in any mode is reviewed and measured in the same way.
+This section describes the practice modes added after the core conversation loop. They all reuse the lexicon, the FSRS cards and the event log, so a word learned in any mode is reviewed and measured in the same way.
 
 #### Choose the word
 
@@ -349,23 +349,21 @@ Built. A compare card shows two to four near-synonyms side by side: the core dif
 
 #### Idioms
 
-Idioms are split into two tiers. The everyday tier holds idioms common in workplace writing ("cut corners", "a long shot"). The literary tier holds allusions that well-read writers use ("Pyrrhic victory", "Hobson's choice"), and each one gets its origin because the story helps the user remember the meaning. The everyday tier is built first, because it matches the target user's daily writing.
+Built. Idioms are split into two tiers. The everyday tier holds idioms common in workplace writing ("cut corners", "a long shot"). The literary tier holds allusions that well-read writers use ("Pyrrhic victory", "Hobson's choice"), and each one gets its origin because the story helps the user remember the meaning.
 
-A user learns an idiom in steps: recognise it in a short paragraph, choose its meaning, pick the situation where it fits, write it in their own sentence (graded), and finally use it unprompted in a conversation, which the existing usage detection records as a `word_used` event.
+A user learns an idiom in steps: recognise it in a short paragraph, choose its meaning, pick the situation where it fits, write it in their own sentence (graded by `usage_judge` with the idiom's `meaning` as the distinction), and finally use it unprompted in a conversation, which the existing usage detection records as a `word_used` event. Steps 1 to 3 use `exercises` item types `idiom_recognise`, `idiom_meaning` and `idiom_situation`, written by `compare_gen` prompt version 2. Step 4 is `idiom_write`.
 
 A misused idiom reads worse than a plain word, especially from a non-native writer, so idioms have extra limits:
 
 - Every idiom stores `avoid_when`, and the card shows it.
-- Conversations get an `allow_idioms` flag, off by default and set by the writing-task presets (on for a team chat update, off for a client email). The editor receives idiom groups only when the flag is on and no idiom suggestion has been shown in that conversation yet, so it can suggest at most one idiom per conversation.
-- Misuse rate is reported separately for idioms, and the dashboard does not reward a higher count of idioms used.
+- Conversations get an `allow_idioms` flag, off by default and set by the writing-task presets (on for a team chat update, off for a client email). The editor receives idiom groups only when the flag is on and no idiom suggestion has been shown in that conversation yet, so it can suggest at most one idiom per conversation. This filter runs in Python before the editor call (`editor.v5`).
+- Misuse rate excludes idiom options; `idiom_misuse_rate` is shown separately on the dashboard, which does not reward a higher count of idioms used.
 
-Idiom content is drafted by an `idiom_gen` role and reviewed in the admin page, like precision groups. Entries are not copied from published dictionaries, because of licensing. The first three steps are exercises written by `compare_gen` (see the next subsection). The fourth step is graded by the existing `usage_judge`, with the idiom's `meaning` passed as the distinction.
+Idiom content is drafted by an `idiom_gen` role and reviewed in the admin page, like precision groups. Entries are not copied from published dictionaries, because of licensing.
 
 #### Planned tables, events and roles
 
-The shared `exercises` / `exercise_attempts` tables, `exercise_answered`, `card_reviewed.source=exercise`, `choice_gen` and `compare_gen` are built (see "Data model", "Choose the word" and "Compare"). The first three idiom steps add more `item_type` values on those tables, and a later `compare_gen` prompt version.
-
-Lexicon `kind` / nullable `head_lemma` / option `details`, plus `confusable_gen` and `idiom_gen`, are built (see "Data model" and "Precision groups").
+The shared `exercises` / `exercise_attempts` tables, `exercise_answered`, `card_reviewed.source=exercise`, `choice_gen`, `compare_gen` (including v2 idiom item types), lexicon `kind` / `details`, and idiom practice are built (see "Data model", "Choose the word", "Compare" and "Idioms").
 
 ## Practice and spaced repetition
 
@@ -394,7 +392,8 @@ All metrics are computed per user over a time window (default: weekly buckets fo
 | Overuse lift | For each surface word with at least five uses: (user's uses ÷ user's total words) ÷ `wordfreq.word_frequency(word, "en")` | Shows words the user uses far more than general English. Surface forms are used because wordfreq counts surface forms |
 | Acceptance rate | `suggestion_accepted` ÷ `suggestion_shown` | A low rate points at editor quality, not at the user |
 | Spontaneous correct use | Accepted options with at least one unprompted, correct `word_used` event within 30 days of acceptance ÷ options accepted in that window | The main evidence that a word has entered active vocabulary |
-| Misuse rate | `word_used` with `correct=false` ÷ all `word_used` | Guards against scattering new words incorrectly |
+| Misuse rate | `word_used` with `correct=false` ÷ non-idiom `word_used` | Guards against scattering new words incorrectly; idioms excluded |
+| Idiom misuse rate | `word_used` with `correct=false` ÷ idiom `word_used` | Reported separately; misused idioms read worse than plain words |
 | Drill score | Mean drill score per week | Rubric: precision, correctness of meaning, naturalness, each 1 to 5 |
 | Lexical diversity | MTLD over all user words in the window, reported only when the window has at least 100 words | Type-token ratio is avoided because it falls as text gets longer |
 

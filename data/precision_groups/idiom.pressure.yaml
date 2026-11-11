@@ -1,0 +1,18 @@
+kind: idiom
+head_lemma: pressure
+groups:
+- id: idiom.pressure
+  pos: ADJ
+  sense_gloss: facing tight deadlines or scrutiny
+  options:
+  - word: under the gun
+    distinction: forced to deliver under heavy time pressure
+    example: The team is under the gun to ship before the freeze.
+    register: neutral
+    details:
+      meaning: working with little time left and high stakes
+      tier: everyday
+      region: common
+      variants: []
+      misuse_example: The prop was under the gun on the film set.
+      avoid_when: in calm planning discussions where pressure is not the point

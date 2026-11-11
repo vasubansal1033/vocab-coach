@@ -93,6 +93,7 @@ export type Dashboard = {
   acceptance: number | null
   spontaneous: number | null
   misuse: number | null
+  idiom_misuse: number | null
   drill_weeks: { label: string; score: number | null }[]
   mtld: number | null
 }
@@ -270,6 +271,54 @@ export const api = {
       method: 'POST',
       body: JSON.stringify({ group_id: groupId, item_type: itemType }),
     }),
+  listIdiomGroups: () =>
+    request<
+      {
+        id: string
+        head_lemma: string | null
+        sense_gloss: string
+        words: string[]
+        tier: string
+      }[]
+    >('/api/idioms'),
+  getIdiomCard: (groupId: string) =>
+    request<{
+      id: string
+      head_lemma: string | null
+      sense_gloss: string
+      pos: string
+      options: {
+        id: string
+        word: string
+        distinction: string
+        example: string
+        register: string
+        meaning: string
+        tier: string
+        region: string
+        variants: string[]
+        misuse_example: string
+        avoid_when: string
+        origin: string | null
+      }[]
+    }>(`/api/idioms/${encodeURIComponent(groupId)}`),
+  createIdiomExercise: (
+    groupId: string,
+    itemType: 'idiom_recognise' | 'idiom_meaning' | 'idiom_situation' | 'idiom_write',
+    optionId?: string,
+  ) =>
+    request<{
+      id: string
+      item_type: string
+      prompt: Record<string, unknown>
+    }>('/api/exercises/idiom', {
+      method: 'POST',
+      body: JSON.stringify({
+        group_id: groupId,
+        item_type: itemType,
+        option_id: optionId ?? null,
+      }),
+    }),
   getExercise: (exerciseId: string) =>
     request<{
       id: string
@@ -285,6 +334,8 @@ export const api = {
       misused_option_id?: string
       replacement_option_id?: string
       ordered_option_ids?: string[]
+      selected_id?: string
+      sentence?: string
     },
   ) =>
     request<{

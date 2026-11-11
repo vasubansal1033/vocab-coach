@@ -34,8 +34,12 @@ from vocab.api.schemas import (
     ExerciseAttemptIn,
     ExerciseAttemptOut,
     ExerciseCreateCompareIn,
+    ExerciseCreateIdiomIn,
     ExerciseOut,
     FeedbackOut,
+    IdiomCardOut,
+    IdiomGroupListItemOut,
+    IdiomOptionOut,
     LemmaDetailOut,
     LemmaOptionOut,
     MessageIn,
@@ -81,13 +85,19 @@ from vocab.exercises.schemas import (
     CompareMisuseResponse,
     CompareOrderResponse,
     ComparePairResponse,
+    IdiomSelectResponse,
+    IdiomWriteResponse,
 )
 from vocab.exercises.service import (
     answer_exercise,
+    answer_idiom_write,
     compare_card,
     create_choice,
     create_compare,
+    create_idiom,
+    idiom_card,
     list_compare_groups,
+    list_idiom_groups,
 )
 from vocab.lexicon.models import PrecisionGroup
 from vocab.llm.models import LlmCall
@@ -97,6 +107,7 @@ from vocab.metrics.queries import (
     crutch_rate_weekly,
     default_window,
     drill_score_weekly,
+    idiom_misuse_rate,
     lemma_detail,
     lexical_diversity,
     misuse_rate,
@@ -529,6 +540,7 @@ def build_router(settings: Settings | None = None) -> APIRouter:
             ),
             spontaneous=spontaneous_correct_use(session, user.id, start, end),
             misuse=misuse_rate(session, user.id, start, end),
+            idiom_misuse=idiom_misuse_rate(session, user.id, start, end),
             drill_weeks=[DrillWeekOut(label=w.label, score=w.score) for w in drills],
             mtld=lexical_diversity(session, user.id, start, end),
         )
@@ -768,6 +780,8 @@ def build_router(settings: Settings | None = None) -> APIRouter:
         | ComparePairResponse
         | CompareMisuseResponse
         | CompareOrderResponse
+        | IdiomSelectResponse
+        | IdiomWriteResponse
     ):
         if exercise.item_type == "choice":
             if not body.best_option_id:
@@ -794,7 +808,46 @@ def build_router(settings: Settings | None = None) -> APIRouter:
             if not body.ordered_option_ids:
                 raise HTTPException(status_code=422, detail="ordered_option_ids is required")
             return CompareOrderResponse(ordered_option_ids=body.ordered_option_ids)
+        if exercise.item_type in ("idiom_recognise", "idiom_meaning", "idiom_situation"):
+            if not body.selected_id:
+                raise HTTPException(status_code=422, detail="selected_id is required")
+            return IdiomSelectResponse(selected_id=body.selected_id)
+        if exercise.item_type == "idiom_write":
+            if not body.sentence or not body.sentence.strip():
+                raise HTTPException(status_code=422, detail="sentence is required")
+            return IdiomWriteResponse(sentence=body.sentence.strip())
         raise HTTPException(status_code=400, detail=f"unsupported item_type: {exercise.item_type}")
+
+    def _idiom_card_out(group: PrecisionGroup) -> IdiomCardOut:
+        options: list[IdiomOptionOut] = []
+        for opt in group.options:
+            if opt.status != "approved":
+                continue
+            details = opt.details or {}
+            options.append(
+                IdiomOptionOut(
+                    id=opt.id,
+                    word=opt.word,
+                    distinction=opt.distinction,
+                    example=opt.example,
+                    speech_register=opt.register,
+                    meaning=str(details.get("meaning") or opt.distinction),
+                    tier=str(details.get("tier") or "everyday"),
+                    region=str(details.get("region") or "common"),
+                    variants=list(details.get("variants") or []),
+                    misuse_example=str(details.get("misuse_example") or ""),
+                    avoid_when=str(details.get("avoid_when") or ""),
+                    origin=details.get("origin"),
+                )
+            )
+        options.sort(key=lambda o: o.word.lower())
+        return IdiomCardOut(
+            id=group.id,
+            head_lemma=group.head_lemma,
+            sense_gloss=group.sense_gloss,
+            pos=group.pos,
+            options=options,
+        )
 
     @router.get("/compare", response_model=list[CompareGroupListItemOut])
     def compare_list(
@@ -855,6 +908,64 @@ def build_router(settings: Settings | None = None) -> APIRouter:
             raise HTTPException(status_code=400, detail=str(exc)) from exc
         return _exercise_out(exercise)
 
+    @router.get("/idioms", response_model=list[IdiomGroupListItemOut])
+    def idioms_list(
+        user: User = Depends(current_user),
+        session: Session = Depends(get_session),
+    ) -> list[IdiomGroupListItemOut]:
+        del user  # auth only
+        rows: list[IdiomGroupListItemOut] = []
+        for group in list_idiom_groups(session):
+            approved = [o for o in group.options if o.status == "approved"]
+            tiers = {
+                str((o.details or {}).get("tier") or "everyday") for o in approved
+            }
+            tier = "literary" if tiers == {"literary"} else (
+                "mixed" if len(tiers) > 1 else next(iter(tiers), "everyday")
+            )
+            rows.append(
+                IdiomGroupListItemOut(
+                    id=group.id,
+                    head_lemma=group.head_lemma,
+                    sense_gloss=group.sense_gloss,
+                    words=[o.word for o in approved],
+                    tier=tier,
+                )
+            )
+        return rows
+
+    @router.get("/idioms/{group_id}", response_model=IdiomCardOut)
+    def idioms_get(
+        group_id: str,
+        user: User = Depends(current_user),
+        session: Session = Depends(get_session),
+    ) -> IdiomCardOut:
+        del user  # auth only; lexicon is shared
+        try:
+            group = idiom_card(session, group_id)
+        except ValueError as exc:
+            raise HTTPException(status_code=404, detail="Not found") from exc
+        return _idiom_card_out(group)
+
+    @router.post("/exercises/idiom", response_model=ExerciseOut)
+    async def exercises_idiom_create(
+        body: ExerciseCreateIdiomIn,
+        user: User = Depends(current_user),
+        session: Session = Depends(get_session),
+    ) -> ExerciseOut:
+        try:
+            exercise = await create_idiom(
+                session,
+                user_id=user.id,
+                group_id=body.group_id,
+                item_type=body.item_type,
+                option_id=body.option_id,
+                settings=settings,
+            )
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        return _exercise_out(exercise)
+
     @router.get("/exercises/{exercise_id}", response_model=ExerciseOut)
     def exercises_get(
         exercise_id: str,
@@ -868,7 +979,7 @@ def build_router(settings: Settings | None = None) -> APIRouter:
         return _exercise_out(exercise)
 
     @router.post("/exercises/{exercise_id}/attempt", response_model=ExerciseAttemptOut)
-    def exercises_attempt(
+    async def exercises_attempt(
         exercise_id: str,
         body: ExerciseAttemptIn,
         user: User = Depends(current_user),
@@ -879,12 +990,21 @@ def build_router(settings: Settings | None = None) -> APIRouter:
             raise HTTPException(status_code=404, detail="Not found")
         authorize(user.id, "update", exercise)
         response = _response_for_attempt(exercise, body)
-        attempt = answer_exercise(
-            session,
-            exercise=exercise,
-            user_id=user.id,
-            response=response,
-        )
+        if isinstance(response, IdiomWriteResponse):
+            attempt = await answer_idiom_write(
+                session,
+                exercise=exercise,
+                user_id=user.id,
+                response=response,
+                settings=settings,
+            )
+        else:
+            attempt = answer_exercise(
+                session,
+                exercise=exercise,
+                user_id=user.id,
+                response=response,
+            )
         return _attempt_out(attempt)
 
     return router

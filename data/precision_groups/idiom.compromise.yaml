@@ -1,0 +1,18 @@
+kind: idiom
+head_lemma: compromise
+groups:
+- id: idiom.compromise
+  pos: VERB
+  sense_gloss: settle differences by each side giving ground
+  options:
+  - word: meet halfway
+    distinction: each side gives up something to agree
+    example: We met halfway on the timeline and the scope.
+    register: neutral
+    details:
+      meaning: reach agreement by mutual compromise
+      tier: everyday
+      region: common
+      variants: []
+      misuse_example: Meet halfway between the two offices for coffee.
+      avoid_when: when one side must not concede on a hard requirement

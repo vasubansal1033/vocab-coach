@@ -1,0 +1,18 @@
+kind: idiom
+head_lemma: reveal
+groups:
+- id: idiom.reveal
+  pos: VERB
+  sense_gloss: disclose a secret by accident or carelessness
+  options:
+  - word: let the cat out of the bag
+    distinction: reveal something that was meant to stay secret
+    example: The memo let the cat out of the bag about the reorg.
+    register: neutral
+    details:
+      meaning: disclose a secret earlier than planned
+      tier: everyday
+      region: common
+      variants: []
+      misuse_example: Let the cat out of the bag so it can walk.
+      avoid_when: when the news was meant to be public already

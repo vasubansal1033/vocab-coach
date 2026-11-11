@@ -1,0 +1,18 @@
+kind: idiom
+head_lemma: join
+groups:
+- id: idiom.join
+  pos: VERB
+  sense_gloss: decide to support a plan
+  options:
+  - word: jump on board
+    distinction: agree to join a plan or effort
+    example: Once legal jumped on board, we booked the launch.
+    register: neutral
+    details:
+      meaning: commit to supporting a proposal
+      tier: everyday
+      region: common
+      variants: []
+      misuse_example: Jump on board the train before it leaves.
+      avoid_when: when a formal signed approval is required

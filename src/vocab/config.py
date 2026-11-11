@@ -38,7 +38,7 @@ class Settings(BaseSettings):
     ollama_api_base: str = "http://localhost:11434"
 
     llm_partner_prompt_version: int = 1
-    llm_editor_prompt_version: int = 4
+    llm_editor_prompt_version: int = 5
     llm_usage_judge_prompt_version: int = 1
     llm_drill_gen_prompt_version: int = 2
     llm_drill_grade_prompt_version: int = 1
@@ -46,7 +46,7 @@ class Settings(BaseSettings):
     llm_choice_gen_prompt_version: int = 1
     llm_confusable_gen_prompt_version: int = 1
     llm_idiom_gen_prompt_version: int = 1
-    llm_compare_gen_prompt_version: int = 1
+    llm_compare_gen_prompt_version: int = 2
 
     editor_max_suggestions: int = 3
     # Empty means nobody is admin until set; /admin/lexicon returns 404.

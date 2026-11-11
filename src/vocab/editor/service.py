@@ -9,10 +9,12 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session, selectinload
 
 from vocab.config import Settings, get_settings
+from vocab.conversation.models import Message
 from vocab.editor.models import EditorRun, Suggestion, SuggestionOption
 from vocab.editor.schemas import EditorOutput, EditorSuggestion
-from vocab.events import SuggestionShownPayload, record_event
+from vocab.events import Event, SuggestionShownPayload, record_event
 from vocab.lexicon.models import PrecisionGroup, PrecisionOption, ReviewQueueItem
+from vocab.lexicon.schemas import GroupKind
 from vocab.lexicon.service import approved_groups_for_lemma
 from vocab.lexicon.synonym_api import synonym_hints
 from vocab.llm.graphs import run_structured_role
@@ -23,6 +25,47 @@ from vocab.nlp.types import Analysis
 logger = logging.getLogger(__name__)
 
 
+def conversation_has_idiom_suggestion(
+    session: Session, *, conversation_id: str, user_id: str
+) -> bool:
+    """True when this conversation already showed an idiom suggestion."""
+    message_ids = list(
+        session.scalars(select(Message.id).where(Message.conversation_id == conversation_id))
+    )
+    if not message_ids:
+        return False
+    suggestion_rows = list(
+        session.scalars(
+            select(Suggestion).where(
+                Suggestion.user_id == user_id,
+                Suggestion.message_id.in_(message_ids),
+                Suggestion.group_id.is_not(None),
+            )
+        )
+    )
+    idiom_group_ids = {
+        row.group_id
+        for row in suggestion_rows
+        if row.group_id and _group_kind(session, row.group_id) == "idiom"
+    }
+    if not idiom_group_ids:
+        return False
+    suggestion_ids = [row.id for row in suggestion_rows if row.group_id in idiom_group_ids]
+    shown = session.scalars(
+        select(Event.id).where(
+            Event.user_id == user_id,
+            Event.type == "suggestion_shown",
+            Event.subject_id.in_(suggestion_ids),
+        )
+    ).first()
+    return shown is not None
+
+
+def _group_kind(session: Session, group_id: str) -> str | None:
+    group = session.get(PrecisionGroup, group_id)
+    return group.kind if group is not None else None
+
+
 async def build_editor_variables(
     session: Session,
     *,
@@ -31,16 +74,31 @@ async def build_editor_variables(
     partner_previous: str | None = None,
     conversation_title: str | None = None,
     feedback_expectations: str | None = None,
+    allow_idioms: bool = False,
+    conversation_id: str | None = None,
+    user_id: str | None = None,
 ) -> dict[str, Any]:
-    """Assemble prompt variables, including Datamuse synonym hints."""
+    """Assemble prompt variables, including Datamuse synonym hints.
+
+    Idiom groups are included only when allow_idioms is on and this conversation
+    has not yet shown an idiom suggestion (enforced here, not only in the prompt).
+    """
     lemma_pos: list[tuple[str, str | None]] = [
         (span.lemma, span.pos) for span in analysis.candidates
     ]
     lemma_set = {lemma for lemma, _ in lemma_pos}
+    include_idioms = False
+    if allow_idioms and conversation_id and user_id:
+        include_idioms = not conversation_has_idiom_suggestion(
+            session, conversation_id=conversation_id, user_id=user_id
+        )
+    kinds: tuple[GroupKind, ...] = (
+        ("precision", "idiom") if include_idioms else ("precision",)
+    )
     groups: list[PrecisionGroup] = []
     seen_group_ids: set[str] = set()
     for lemma in sorted(lemma_set):
-        for group in approved_groups_for_lemma(session, lemma):
+        for group in approved_groups_for_lemma(session, lemma, kinds=kinds):
             if group.id not in seen_group_ids:
                 seen_group_ids.add(group.id)
                 groups.append(group)
@@ -133,6 +191,7 @@ def _groups_payload(groups: list[PrecisionGroup]) -> list[dict[str, object]]:
         out.append(
             {
                 "id": group.id,
+                "kind": group.kind,
                 "head_lemma": group.head_lemma,
                 "pos": group.pos,
                 "sense_gloss": group.sense_gloss,
@@ -142,6 +201,7 @@ def _groups_payload(groups: list[PrecisionGroup]) -> list[dict[str, object]]:
                         "word": opt.word,
                         "distinction": opt.distinction,
                         "example": opt.example,
+                        "details": opt.details or {},
                     }
                     for opt in group.options
                     if opt.status == "approved"
@@ -178,6 +238,8 @@ async def analyze_message(
     partner_previous: str | None = None,
     conversation_title: str | None = None,
     feedback_expectations: str | None = None,
+    allow_idioms: bool = False,
+    conversation_id: str | None = None,
     settings: Settings | None = None,
     record_shown: bool = True,
 ) -> list[Suggestion]:
@@ -191,6 +253,9 @@ async def analyze_message(
         partner_previous=partner_previous,
         conversation_title=conversation_title,
         feedback_expectations=feedback_expectations,
+        allow_idioms=allow_idioms,
+        conversation_id=conversation_id,
+        user_id=user_id,
     )
 
     output = await run_structured_role(

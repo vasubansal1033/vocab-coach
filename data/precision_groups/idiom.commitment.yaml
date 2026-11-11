@@ -1,0 +1,19 @@
+kind: idiom
+head_lemma: commitment
+groups:
+- id: idiom.commitment
+  pos: VERB
+  sense_gloss: pass a point of no return
+  options:
+  - word: cross the Rubicon
+    distinction: take an irreversible step into conflict or change
+    example: Deleting the dual-write path crosses the Rubicon on the migration.
+    register: neutral
+    details:
+      meaning: commit to a course that cannot easily be undone
+      tier: literary
+      region: common
+      variants: []
+      misuse_example: Cross the Rubicon river on the hiking map.
+      avoid_when: when the step is still easily reversible
+      origin: Caesar crossed the Rubicon into Italy and made civil war inevitable.

@@ -1,4 +1,4 @@
-"""Structured schemas for choose-the-word and compare exercises."""
+"""Structured schemas for choose-the-word, compare, and idiom exercises."""
 
 from __future__ import annotations
 
@@ -8,6 +8,10 @@ from pydantic import BaseModel, Field, model_validator
 
 Fit = Literal["fits", "partly", "wrong"]
 CompareItemType = Literal["compare_pair", "compare_misuse", "compare_order"]
+IdiomItemType = Literal[
+    "idiom_recognise", "idiom_meaning", "idiom_situation", "idiom_write"
+]
+IdiomLlmItemType = Literal["idiom_recognise", "idiom_meaning", "idiom_situation"]
 
 
 class ChoiceCandidate(BaseModel):
@@ -191,3 +195,111 @@ class CompareOrderResponse(BaseModel):
 class CompareOrderFeedback(BaseModel):
     ordered_option_ids: list[str]
     user_ordered_option_ids: list[str]
+
+
+# --- Idioms: recognise / meaning / situation (LLM) and write (usage_judge) ---
+
+
+class IdiomSelectChoice(BaseModel):
+    id: str
+    label: str
+
+
+class IdiomRecogniseGenOutput(BaseModel):
+    """LLM output: paragraph that uses one idiom; user picks which."""
+
+    paragraph: str
+    option_id: str
+    choices: list[IdiomSelectChoice] = Field(min_length=3, max_length=4)
+
+    @model_validator(mode="after")
+    def one_correct_option(self) -> IdiomRecogniseGenOutput:
+        if not self.paragraph.strip():
+            raise ValueError("paragraph must not be empty")
+        ids = [c.id for c in self.choices]
+        if len(set(ids)) != len(ids):
+            raise ValueError("choice ids must be unique")
+        if self.option_id not in ids:
+            raise ValueError("option_id must appear in choices")
+        return self
+
+
+class IdiomMeaningGenOutput(BaseModel):
+    """LLM output: pick the correct meaning for one idiom."""
+
+    option_id: str
+    choices: list[IdiomSelectChoice] = Field(min_length=3, max_length=4)
+    correct_id: str
+
+    @model_validator(mode="after")
+    def one_correct(self) -> IdiomMeaningGenOutput:
+        ids = [c.id for c in self.choices]
+        if len(set(ids)) != len(ids):
+            raise ValueError("choice ids must be unique")
+        if self.correct_id not in ids:
+            raise ValueError("correct_id must appear in choices")
+        return self
+
+
+class IdiomSituationGenOutput(BaseModel):
+    """LLM output: pick the situation where the idiom fits."""
+
+    option_id: str
+    choices: list[IdiomSelectChoice] = Field(min_length=3, max_length=4)
+    correct_id: str
+
+    @model_validator(mode="after")
+    def one_correct(self) -> IdiomSituationGenOutput:
+        ids = [c.id for c in self.choices]
+        if len(set(ids)) != len(ids):
+            raise ValueError("choice ids must be unique")
+        if self.correct_id not in ids:
+            raise ValueError("correct_id must appear in choices")
+        return self
+
+
+class IdiomSelectPrompt(BaseModel):
+    """Shared prompt shape for recognise / meaning / situation."""
+
+    stem: str
+    word: str | None = None
+    choices: list[IdiomSelectChoice]
+
+
+class IdiomSelectAnswer(BaseModel):
+    correct_id: str
+    option_id: str
+
+
+class IdiomSelectResponse(BaseModel):
+    selected_id: str
+
+
+class IdiomSelectFeedback(BaseModel):
+    correct_id: str
+    selected_id: str
+    option_id: str
+
+
+class IdiomWritePrompt(BaseModel):
+    option_id: str
+    word: str
+    meaning: str
+    avoid_when: str
+
+
+class IdiomWriteAnswer(BaseModel):
+    option_id: str
+    word: str
+    meaning: str
+
+
+class IdiomWriteResponse(BaseModel):
+    sentence: str = Field(min_length=1)
+
+
+class IdiomWriteFeedback(BaseModel):
+    correct: bool
+    explanation: str
+    option_id: str
+    word: str

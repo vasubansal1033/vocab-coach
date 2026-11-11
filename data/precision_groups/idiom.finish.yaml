@@ -1,0 +1,18 @@
+kind: idiom
+head_lemma: finish
+groups:
+- id: idiom.finish
+  pos: VERB
+  sense_gloss: bring something to a close
+  options:
+  - word: wrap up
+    distinction: finish the remaining small parts of a task or meeting
+    example: Let's wrap up the open questions before noon.
+    register: neutral
+    details:
+      meaning: bring the last bits of work or a meeting to a close
+      tier: everyday
+      region: common
+      variants: []
+      misuse_example: Please wrap up the gift with ribbon.
+      avoid_when: when you mean packaging something, or when work is only paused

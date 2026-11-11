@@ -1,0 +1,18 @@
+kind: idiom
+head_lemma: cautious
+groups:
+- id: idiom.cautious
+  pos: VERB
+  sense_gloss: choose the safer option when unsure
+  options:
+  - word: err on the side of caution
+    distinction: prefer the safer choice when unsure
+    example: We erred on the side of caution and delayed the cutover.
+    register: neutral
+    details:
+      meaning: choose safety over speed when the risk is unclear
+      tier: everyday
+      region: common
+      variants: []
+      misuse_example: Use literal caution crossing ice; this phrase is figurative.
+      avoid_when: when delay itself creates more risk than acting

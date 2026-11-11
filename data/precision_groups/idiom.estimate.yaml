@@ -1,0 +1,18 @@
+kind: idiom
+head_lemma: estimate
+groups:
+- id: idiom.estimate
+  pos: NOUN
+  sense_gloss: a rough number without precision
+  options:
+  - word: ballpark
+    distinction: an approximate figure good enough for planning
+    example: Give me a ballpark for the migration effort.
+    register: neutral
+    details:
+      meaning: a rough estimate, not an exact number
+      tier: everyday
+      region: common
+      variants: []
+      misuse_example: Meet me at the ballpark after work.
+      avoid_when: when finance or legal needs an exact figure

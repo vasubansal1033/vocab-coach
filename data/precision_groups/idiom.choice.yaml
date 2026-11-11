@@ -1,0 +1,20 @@
+kind: idiom
+head_lemma: choice
+groups:
+- id: idiom.choice
+  pos: NOUN
+  sense_gloss: an offer with no real alternative
+  options:
+  - word: Hobson's choice
+    distinction: take the one option on offer or nothing
+    example: 'Accept this vendor or cancel the project: a Hobson''s choice.'
+    register: neutral
+    details:
+      meaning: no real choice; only one option is available
+      tier: literary
+      region: common
+      variants: []
+      misuse_example: Hobson offered many horses but only the one by the door.
+      avoid_when: when several genuine alternatives exist
+      origin: From Thomas Hobson, who hired out horses and made riders take the next
+        horse in line.

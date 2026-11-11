@@ -1,0 +1,19 @@
+kind: idiom
+head_lemma: absurd
+groups:
+- id: idiom.absurd
+  pos: ADJ
+  sense_gloss: nightmarishly complex and senseless
+  options:
+  - word: Kafkaesque
+    distinction: nightmarishly complex, opaque, and helpless-feeling
+    example: 'The appeal process was Kafkaesque: new forms for every reply.'
+    register: neutral
+    details:
+      meaning: a bewildering bureaucratic nightmare with no clear exit
+      tier: literary
+      region: common
+      variants: []
+      misuse_example: A Kafkaesque book club on Kafka's novels.
+      avoid_when: when the process is complex but still clear and fair
+      origin: From Franz Kafka's fiction, where characters face endless opaque authority.

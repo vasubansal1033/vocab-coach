@@ -1,0 +1,19 @@
+kind: idiom
+head_lemma: risk
+groups:
+- id: idiom.risk
+  pos: NOUN
+  sense_gloss: an action that releases many new troubles
+  options:
+  - word: open Pandora's box
+    distinction: start something that releases many unforeseen problems
+    example: Rewriting the auth stack mid-quarter would open Pandora's box.
+    register: neutral
+    details:
+      meaning: begin a course of action that unleashes many new troubles
+      tier: literary
+      region: common
+      variants: []
+      misuse_example: Open Pandora's box on the shelf for the prop check.
+      avoid_when: when the change is small and well contained
+      origin: In Greek myth Pandora opened a jar and released evils into the world.

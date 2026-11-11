@@ -1,0 +1,18 @@
+kind: idiom
+head_lemma: effort
+groups:
+- id: idiom.effort
+  pos: NOUN
+  sense_gloss: extra work beyond the minimum
+  options:
+  - word: go the extra mile
+    distinction: do more than is strictly required to help
+    example: She went the extra mile and wrote a migration guide.
+    register: neutral
+    details:
+      meaning: put in more effort than expected to get a better result
+      tier: everyday
+      region: common
+      variants: []
+      misuse_example: We will go the extra mile on the highway.
+      avoid_when: in formal contracts where only defined scope matters

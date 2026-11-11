@@ -1,0 +1,19 @@
+kind: idiom
+head_lemma: trap
+groups:
+- id: idiom.trap
+  pos: NOUN
+  sense_gloss: a gift that hides a threat
+  options:
+  - word: Trojan horse
+    distinction: something welcomed that secretly causes harm
+    example: The free plugin was a Trojan horse for data exfiltration.
+    register: neutral
+    details:
+      meaning: an apparent benefit that conceals a damaging payload
+      tier: literary
+      region: common
+      variants: []
+      misuse_example: A wooden Trojan horse prop for the school play.
+      avoid_when: when the gift is inspected and truly safe
+      origin: Greeks hid soldiers in a wooden horse that Troy pulled inside its walls.

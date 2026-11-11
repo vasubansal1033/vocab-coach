@@ -1,0 +1,18 @@
+kind: idiom
+head_lemma: postpone
+groups:
+- id: idiom.postpone
+  pos: VERB
+  sense_gloss: delay something that is not urgent now
+  options:
+  - word: put on the back burner
+    distinction: delay work that matters less right now
+    example: We put the redesign on the back burner until after launch.
+    register: neutral
+    details:
+      meaning: set aside for later because other work has priority
+      tier: everyday
+      region: common
+      variants: []
+      misuse_example: Put the kettle on the back burner of the stove.
+      avoid_when: when delay would break a commitment or cause harm

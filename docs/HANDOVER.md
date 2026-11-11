@@ -2,7 +2,7 @@
 
 This file hands the next round of work to a coding agent that has not seen the conversation in which it was planned. It records the product decisions, the order of work, and the checks that apply to every section. The detailed design is in `docs/DESIGN.md`, and the per-section tasks, files and decisions are in `docs/PLAN.md`. This file does not repeat them.
 
-Everything up to and including the "Compare" section of `docs/PLAN.md` is built. The section still planned after it is "Idioms". (Conversation improvements, Drill improvements, Choose the word and Word sets are also built.)
+Everything up to and including the "Idioms" section of `docs/PLAN.md` is built. Remaining work is "Product readiness (later)" items already marked done for the personal phase, plus live editor eval with `RUN_LLM_TESTS=1` for idiom-aware `editor.v5` vs v3 if you want committed result JSON files.
 
 ## Product decisions
 

@@ -151,6 +151,7 @@ class DashboardOut(BaseModel):
     acceptance: float | None
     spontaneous: float | None
     misuse: float | None
+    idiom_misuse: float | None = None
     drill_weeks: list[DrillWeekOut]
     mtld: float | None
 
@@ -234,7 +235,7 @@ class ExerciseOut(BaseModel):
 
 
 class ExerciseAttemptIn(BaseModel):
-    """Body fields used by choice and compare item types; unused fields stay empty."""
+    """Body fields used by choice, compare, and idiom item types; unused fields stay empty."""
 
     best_option_id: str | None = None
     marked_option_ids: list[str] = Field(default_factory=list)
@@ -242,11 +243,21 @@ class ExerciseAttemptIn(BaseModel):
     misused_option_id: str | None = None
     replacement_option_id: str | None = None
     ordered_option_ids: list[str] | None = None
+    selected_id: str | None = None
+    sentence: str | None = None
 
 
 class ExerciseCreateCompareIn(BaseModel):
     group_id: str = Field(min_length=1)
     item_type: Literal["compare_pair", "compare_misuse", "compare_order"]
+
+
+class ExerciseCreateIdiomIn(BaseModel):
+    group_id: str = Field(min_length=1)
+    item_type: Literal[
+        "idiom_recognise", "idiom_meaning", "idiom_situation", "idiom_write"
+    ]
+    option_id: str | None = None
 
 
 class CompareOptionOut(BaseModel):
@@ -276,6 +287,37 @@ class CompareCardOut(BaseModel):
     pos: str
     options: list[CompareOptionOut]
     has_strength_order: bool
+
+
+class IdiomOptionOut(BaseModel):
+    id: str
+    word: str
+    distinction: str
+    example: str
+    speech_register: str = Field(serialization_alias="register")
+    meaning: str
+    tier: str
+    region: str
+    variants: list[str] = Field(default_factory=list)
+    misuse_example: str
+    avoid_when: str
+    origin: str | None = None
+
+
+class IdiomGroupListItemOut(BaseModel):
+    id: str
+    head_lemma: str | None
+    sense_gloss: str
+    words: list[str]
+    tier: str
+
+
+class IdiomCardOut(BaseModel):
+    id: str
+    head_lemma: str | None
+    sense_gloss: str
+    pos: str
+    options: list[IdiomOptionOut]
 
 
 class ExerciseAttemptOut(BaseModel):

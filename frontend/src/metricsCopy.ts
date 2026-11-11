@@ -7,7 +7,10 @@ export const METRIC_DEFINITIONS = {
     'Suggestions you accepted ÷ suggestions shown. A low rate often points at editor quality, not at you.',
   spontaneous:
     'Accepted options that later appear in an unprompted, correct use within 30 days ÷ options accepted in the window.',
-  misuse: 'word_used events marked incorrect ÷ all word_used events. Guards against scattering new words wrongly.',
+  misuse:
+    'Incorrect non-idiom word_used events ÷ all non-idiom word_used events. Idioms are counted separately.',
+  idiomMisuse:
+    'Incorrect idiom word_used events ÷ all idiom word_used events. Misused idioms read worse than plain words.',
   mtld:
     'Lexical diversity (MTLD). Forward and backward passes averaged; shown only when the window has at least 100 words.',
   overuseLift:

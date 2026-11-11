@@ -1,0 +1,18 @@
+kind: idiom
+head_lemma: watch
+groups:
+- id: idiom.watch
+  pos: VERB
+  sense_gloss: monitor something carefully
+  options:
+  - word: keep an eye on
+    distinction: watch something so problems are noticed early
+    example: Keep an eye on error rates after the deploy.
+    register: neutral
+    details:
+      meaning: monitor carefully for changes or problems
+      tier: everyday
+      region: common
+      variants: []
+      misuse_example: Keep an eye on the table while I step out.
+      avoid_when: when you need automated alerts, not human attention alone

@@ -1,0 +1,19 @@
+kind: idiom
+head_lemma: futile
+groups:
+- id: idiom.futile
+  pos: VERB
+  sense_gloss: fight imaginary or unwinnable foes
+  options:
+  - word: tilt at windmills
+    distinction: attack imaginary enemies or unwinnable causes
+    example: Arguing with every drive-by comment is tilting at windmills.
+    register: neutral
+    details:
+      meaning: waste effort fighting the wrong or impossible opponent
+      tier: literary
+      region: common
+      variants: []
+      misuse_example: Tilt at windmills on the Dutch hillside for a photo.
+      avoid_when: when the fight is necessary and winnable
+      origin: Don Quixote attacked windmills thinking they were giants.

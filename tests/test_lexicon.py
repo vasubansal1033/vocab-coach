@@ -72,7 +72,7 @@ def test_approved_groups_for_lemma_defaults_to_precision(session: Session) -> No
 
 @pytest.mark.asyncio
 async def test_editor_variables_exclude_idiom_groups(session: Session) -> None:
-    """Done-when: message with 'agree' must not feed idiom groups to the editor yet."""
+    """Without allow_idioms, a message with 'agree' must not feed idiom groups."""
     load_seeds(session)
     message = "We agree on the timeline."
     analysis = analyze(message)

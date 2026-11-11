@@ -1,0 +1,18 @@
+kind: idiom
+head_lemma: guideline
+groups:
+- id: idiom.guideline
+  pos: NOUN
+  sense_gloss: a practical rule based on experience
+  options:
+  - word: rule of thumb
+    distinction: a simple practical guideline, not an exact law
+    example: As a rule of thumb, keep PRs under four hundred lines.
+    register: neutral
+    details:
+      meaning: an approximate principle that usually works
+      tier: everyday
+      region: common
+      variants: []
+      misuse_example: Measure with the length of your thumb.
+      avoid_when: when a precise standard or regulation applies

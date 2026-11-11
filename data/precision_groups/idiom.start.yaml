@@ -1,0 +1,18 @@
+kind: idiom
+head_lemma: start
+groups:
+- id: idiom.start
+  pos: VERB
+  sense_gloss: begin work or a process
+  options:
+  - word: get the ball rolling
+    distinction: start a process so others can continue
+    example: I'll get the ball rolling with a draft agenda.
+    register: neutral
+    details:
+      meaning: begin something so momentum builds
+      tier: everyday
+      region: common
+      variants: []
+      misuse_example: Get the ball rolling across the floor.
+      avoid_when: when a formal kickoff or signed start is required

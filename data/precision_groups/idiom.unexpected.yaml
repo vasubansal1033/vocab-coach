@@ -1,0 +1,18 @@
+kind: idiom
+head_lemma: unexpected
+groups:
+- id: idiom.unexpected
+  pos: ADJ
+  sense_gloss: surprising and hard to predict
+  options:
+  - word: out of left field
+    distinction: sudden and unrelated to what came before
+    example: The pricing change came out of left field in the Q&A.
+    register: neutral
+    details:
+      meaning: unexpected and seeming to come from nowhere
+      tier: everyday
+      region: common
+      variants: []
+      misuse_example: The throw came out of left field to home plate.
+      avoid_when: when the event was clearly foreshadowed

@@ -1,0 +1,18 @@
+kind: idiom
+head_lemma: limit
+groups:
+- id: idiom.limit
+  pos: VERB
+  sense_gloss: set a firm boundary on what is acceptable
+  options:
+  - word: draw the line
+    distinction: state what you will not accept
+    example: We draw the line at shipping without a rollback plan.
+    register: neutral
+    details:
+      meaning: set a clear limit on acceptable behaviour or risk
+      tier: everyday
+      region: common
+      variants: []
+      misuse_example: Draw the line with a ruler on the page.
+      avoid_when: when you are still open to negotiation on that point

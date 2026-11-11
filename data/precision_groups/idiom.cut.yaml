@@ -1,0 +1,18 @@
+kind: idiom
+head_lemma: cut
+groups:
+- id: idiom.cut
+  pos: VERB
+  sense_gloss: do a job in a careless or incomplete way to save time or cost
+  options:
+  - word: cut corners
+    distinction: skip steps or reduce quality to go faster or cheaper
+    example: They cut corners on testing and shipped with known gaps.
+    register: neutral
+    details:
+      meaning: skip necessary steps to save time or money
+      tier: everyday
+      region: common
+      variants: []
+      misuse_example: We cut corners of the paper for the craft project.
+      avoid_when: when you mean a literal cut, or when quality and safety matter

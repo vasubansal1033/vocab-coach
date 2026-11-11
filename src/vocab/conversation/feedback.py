@@ -132,6 +132,8 @@ async def ensure_message_feedback(
             partner_previous=partner_previous,
             conversation_title=conversation.title,
             feedback_expectations=conversation.feedback_expectations,
+            allow_idioms=bool(conversation.allow_idioms),
+            conversation_id=conversation.id,
             settings=settings,
         )
     except Exception:

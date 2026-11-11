@@ -10,6 +10,7 @@ import LemmaPage from './pages/LemmaPage'
 import ReviewPage from './pages/ReviewPage'
 import DrillsPage from './pages/DrillsPage'
 import ComparePage from './pages/ComparePage'
+import IdiomsPage from './pages/IdiomsPage'
 import AccountPage from './pages/AccountPage'
 
 const links = [
@@ -17,6 +18,7 @@ const links = [
   ['/review', 'Review'],
   ['/drills', 'Drills'],
   ['/compare', 'Compare'],
+  ['/idioms', 'Idioms'],
   ['/dashboard', 'Dashboard'],
 ] as const
 
@@ -78,6 +80,8 @@ export default function App() {
           <Route path="/drills" element={<DrillsPage />} />
           <Route path="/compare" element={<ComparePage />} />
           <Route path="/compare/:groupId" element={<ComparePage />} />
+          <Route path="/idioms" element={<IdiomsPage />} />
+          <Route path="/idioms/:groupId" element={<IdiomsPage />} />
           <Route path="/account" element={<AccountPage />} />
         </Routes>
       </main>

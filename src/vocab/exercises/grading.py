@@ -1,4 +1,4 @@
-"""Pure grading for choose-the-word and compare responses."""
+"""Pure grading for choose-the-word, compare, and idiom select responses."""
 
 from __future__ import annotations
 
@@ -18,6 +18,9 @@ from vocab.exercises.schemas import (
     ComparePairAnswer,
     ComparePairFeedback,
     ComparePairResponse,
+    IdiomSelectAnswer,
+    IdiomSelectFeedback,
+    IdiomSelectResponse,
 )
 
 
@@ -110,5 +113,26 @@ def grade_compare_order(
     )
     return CompareOrderGradeResult(
         correct=list(response.ordered_option_ids) == list(answer.ordered_option_ids),
+        feedback=feedback,
+    )
+
+
+@dataclass(frozen=True)
+class IdiomSelectGradeResult:
+    correct: bool
+    feedback: IdiomSelectFeedback
+
+
+def grade_idiom_select(
+    answer: IdiomSelectAnswer, response: IdiomSelectResponse
+) -> IdiomSelectGradeResult:
+    """Correct when the selected choice id matches the stored answer."""
+    feedback = IdiomSelectFeedback(
+        correct_id=answer.correct_id,
+        selected_id=response.selected_id,
+        option_id=answer.option_id,
+    )
+    return IdiomSelectGradeResult(
+        correct=response.selected_id == answer.correct_id,
         feedback=feedback,
     )

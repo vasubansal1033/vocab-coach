@@ -1,0 +1,19 @@
+kind: idiom
+head_lemma: temptation
+groups:
+- id: idiom.temptation
+  pos: NOUN
+  sense_gloss: a lure that leads to downfall
+  options:
+  - word: siren song
+    distinction: an alluring call that leads people into danger
+    example: The siren song of vanity metrics pulled the roadmap off course.
+    register: neutral
+    details:
+      meaning: a tempting offer that hides serious harm
+      tier: literary
+      region: common
+      variants: []
+      misuse_example: A siren song track on the playlist.
+      avoid_when: when the opportunity is genuinely safe and valuable
+      origin: In myth, sirens sang so sweetly that sailors steered onto the rocks.

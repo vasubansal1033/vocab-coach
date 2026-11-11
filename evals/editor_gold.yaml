@@ -44,3 +44,54 @@
     thing: [item, matter, element]
     fix: [resolve, patch, work around, mitigate]
   forbidden_options: [utilised, leveraged, facilitated]
+
+# Idiom-aware cases for editor.v5 (require allow_idioms + idiom groups in input).
+# Two where an idiom can fit; three where it must not be suggested / keep plain wording.
+
+- id: idiom-fit-agree
+  text: We need to agree on the launch checklist before the client call.
+  partner_previous: Are we aligned for tomorrow?
+  must_flag: [agree]
+  may_flag: []
+  must_keep: [launch, checklist, client]
+  acceptable_options:
+    agree: [on the same page, see eye to eye, align]
+  forbidden_options: [utilised, leveraged, facilitated]
+
+- id: idiom-fit-corners
+  text: They tried to cut the test plan so we could ship earlier.
+  partner_previous: Why did the release feel shaky?
+  must_flag: [cut]
+  may_flag: []
+  must_keep: [test, plan, ship]
+  acceptable_options:
+    cut: [cut corners, trim, shorten]
+  forbidden_options: [utilised, leveraged, facilitated]
+
+- id: idiom-no-formal-client
+  text: Please confirm you agree with the attached statement of work.
+  partner_previous: Sending the SOW for signature.
+  must_flag: []
+  may_flag: [agree]
+  must_keep: [confirm, statement, work]
+  acceptable_options: {}
+  forbidden_options: [on the same page, see eye to eye, utilised, leveraged]
+  expect_empty: true
+
+- id: idiom-no-literal-page
+  text: Open page three and we will agree on the wording in that paragraph.
+  must_flag: []
+  may_flag: []
+  must_keep: [page, paragraph, wording]
+  acceptable_options: {}
+  forbidden_options: [on the same page, utilised, leveraged]
+  expect_empty: true
+
+- id: idiom-no-force-idiom
+  text: The deploy finished and all health checks passed on schedule.
+  must_flag: []
+  may_flag: []
+  must_keep: [deploy, health, schedule]
+  acceptable_options: {}
+  forbidden_options: [cut corners, wrap up, utilised, leveraged]
+  expect_empty: true
