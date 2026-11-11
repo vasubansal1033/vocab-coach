@@ -19,6 +19,9 @@ depends_on: str | Sequence[str] | None = None
 
 def upgrade() -> None:
     """Add flow_mode and allow_idioms; both default false and are fixed at creation."""
+    conn = op.get_bind()
+    # Batch rebuild drops conversations; messages FK requires this off.
+    conn.execute(sa.text("PRAGMA foreign_keys=OFF"))
     with op.batch_alter_table("conversations", schema=None) as batch_op:
         batch_op.add_column(
             sa.Column("flow_mode", sa.Boolean(), nullable=False, server_default=sa.false())
@@ -26,10 +29,14 @@ def upgrade() -> None:
         batch_op.add_column(
             sa.Column("allow_idioms", sa.Boolean(), nullable=False, server_default=sa.false())
         )
+    conn.execute(sa.text("PRAGMA foreign_keys=ON"))
 
 
 def downgrade() -> None:
     """Drop flow_mode and allow_idioms."""
+    conn = op.get_bind()
+    conn.execute(sa.text("PRAGMA foreign_keys=OFF"))
     with op.batch_alter_table("conversations", schema=None) as batch_op:
         batch_op.drop_column("allow_idioms")
         batch_op.drop_column("flow_mode")
+    conn.execute(sa.text("PRAGMA foreign_keys=ON"))

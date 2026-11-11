@@ -19,6 +19,9 @@ depends_on: str | Sequence[str] | None = None
 
 def upgrade() -> None:
     """Upgrade schema."""
+    conn = op.get_bind()
+    # Batch rebuild of precision_groups must not trip option FKs.
+    conn.execute(sa.text("PRAGMA foreign_keys=OFF"))
     with op.batch_alter_table("precision_groups", schema=None) as batch_op:
         batch_op.add_column(
             sa.Column("kind", sa.String(), nullable=False, server_default="precision")
@@ -26,12 +29,16 @@ def upgrade() -> None:
         batch_op.alter_column("head_lemma", existing_type=sa.String(), nullable=True)
     with op.batch_alter_table("precision_options", schema=None) as batch_op:
         batch_op.add_column(sa.Column("details", sa.JSON(), nullable=True))
+    conn.execute(sa.text("PRAGMA foreign_keys=ON"))
 
 
 def downgrade() -> None:
     """Downgrade schema."""
+    conn = op.get_bind()
+    conn.execute(sa.text("PRAGMA foreign_keys=OFF"))
     with op.batch_alter_table("precision_options", schema=None) as batch_op:
         batch_op.drop_column("details")
     with op.batch_alter_table("precision_groups", schema=None) as batch_op:
         batch_op.alter_column("head_lemma", existing_type=sa.String(), nullable=False)
         batch_op.drop_column("kind")
+    conn.execute(sa.text("PRAGMA foreign_keys=ON"))

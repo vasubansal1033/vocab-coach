@@ -19,17 +19,23 @@ depends_on: str | Sequence[str] | None = None
 
 def upgrade() -> None:
     """Upgrade schema."""
+    conn = op.get_bind()
+    conn.execute(sa.text("PRAGMA foreign_keys=OFF"))
     with op.batch_alter_table("drills", schema=None) as batch_op:
         batch_op.add_column(sa.Column("context", sa.Text(), nullable=True))
     with op.batch_alter_table("drill_attempts", schema=None) as batch_op:
         batch_op.add_column(
             sa.Column("hints_used", sa.Integer(), nullable=False, server_default="0")
         )
+    conn.execute(sa.text("PRAGMA foreign_keys=ON"))
 
 
 def downgrade() -> None:
     """Downgrade schema."""
+    conn = op.get_bind()
+    conn.execute(sa.text("PRAGMA foreign_keys=OFF"))
     with op.batch_alter_table("drill_attempts", schema=None) as batch_op:
         batch_op.drop_column("hints_used")
     with op.batch_alter_table("drills", schema=None) as batch_op:
         batch_op.drop_column("context")
+    conn.execute(sa.text("PRAGMA foreign_keys=ON"))
