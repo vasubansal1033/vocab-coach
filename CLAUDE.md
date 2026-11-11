@@ -4,6 +4,7 @@ vocab-coach is a FastAPI web app that helps a user replace vague English words w
 
 - Design and reasoning: `docs/DESIGN.md`
 - Build order and current progress: `docs/PLAN.md` (checkboxes show what is done)
+- Product decisions, order of work and checklists for the planned sections: `docs/HANDOVER.md`
 
 Work on one section of `docs/PLAN.md` at a time. Before writing code for a section, read the design sections it names, propose a plan, and wait for approval. Do not build features from later sections.
 

@@ -1,9 +1,15 @@
 ## Purpose and scope
 
-vocab-coach is a web app that helps a person replace vague, general English words ("good", "fix", "big problem", "really hard") with precise ones. It has two practice modes:
+vocab-coach is a writing coach. It helps a person replace vague, general English words ("good", "fix", "big problem", "really hard") with precise ones.
+
+The target user is a non-native English speaker who works in English and wants to write with more precise and richer vocabulary: emails, chat messages, status updates, reviews and documents. This user usually knows many words passively but falls back on a small set of safe ones when writing. The app therefore focuses on moving words from recognition into active use, and on the fine distinctions between near-synonyms that non-native writers find hardest. Spoken practice (voice input, pronunciation, timed replies) is out of scope for now, because typed text gives the user time to think, so it measures written vocabulary and not spoken fluency.
+
+It has two practice modes today:
 
 - **Conversation.** The user chats with an AI partner. After each user reply, an editor model reviews the reply and suggests at most two more precise word choices, explaining how each option changes the meaning.
 - **Rewrite drills.** The app generates a vague sentence on purpose that targets one word group, the user rewrites it, and a grader model scores the rewrite against a fixed rubric.
+
+Three more practice modes are planned and described in "Planned practice modes": choosing the word that fits a sentence, comparing near-synonyms, and idioms.
 
 Accepted suggestions become spaced-repetition cards. The partner steers later conversations towards topics where due words fit, so the user practises them in their own sentences. A dashboard shows which words the user overuses and whether learned words are showing up unprompted in later replies.
 
@@ -303,6 +309,85 @@ groups:
 The lexicon grows in two ways. A command (`uv run vocab lexicon draft <lemma>`) asks the `group_gen` role for draft groups, using WordNet senses for the lemma as input, and writes them with `status=draft` for review. Editor proposals with `option_id` null go into `review_queue`. An admin page lists drafts and queued proposals with approve, edit and reject actions. Only approved groups are given to the editor.
 
 WordNet is used for candidate senses and for checking that a proposed word exists with the right part of speech. It is not used as the source of suggestions, because its synonym lists are context-free: for "fix" they include "cook", "pickle" and "desex", and they do not include "resolve", "remedy", "rectify" or "mitigate" (checked against WordNet 3.0 through NLTK 3.10.4).
+
+## Planned practice modes
+
+This section describes features that are planned in `docs/PLAN.md` but not built yet. They all reuse the lexicon, the FSRS cards and the event log, so a word learned in any mode is reviewed and measured in the same way.
+
+#### Word sets: one lexicon for all modes
+
+Today every precision group belongs to one vague head lemma. Two of the planned modes need sets that do not fit that shape. Confusable pairs such as imply and infer, or continual and continuous, have no vague head word. Idioms are phrases grouped by meaning ("on the same page", "see eye to eye" for agreement) and need fields that single words do not have.
+
+The plan is to extend the existing tables instead of adding parallel ones, so that `srs_cards`, `word_used`, the usage judge and every metric keep working on `option_id` without changes:
+
+- `precision_groups` gains `kind` (`precision`, `confusable` or `idiom`, default `precision`).
+- `head_lemma` becomes nullable. Confusable sets leave it null. Idiom groups keep it and set it to the plain word the idioms can replace (the group `idiom.agree` has `head_lemma: agree`), because that is how the editor finds candidate groups for a word in the user's message.
+- `precision_options` gains `details` (JSON), validated by a Pydantic model chosen by the group's kind. Precision options leave it empty. Confusable options store `collocations` (list of strings), `connotation` (`positive`, `neutral`, `negative`) and an optional `strength` (integer, only set when the set has a natural order such as annoyed, irritated, exasperated, livid). Idiom options store `meaning`, `tier` (`everyday` or `literary`), `region` (`common`, `uk`, `us`), `variants`, `misuse_example`, `avoid_when` and, for literary idioms, a one-sentence `origin`.
+- For idioms, `word` holds the idiom in its base form ("cut corners"). Learned-word matching already compares lemmas, so "cutting corners" in a message matches it. Idioms with a pronoun slot ("pull one's weight") would not match, so the first seed set leaves them out.
+- YAML seed files stay in `data/precision_groups/`. A file may set a top-level `kind`; when it is missing the kind is `precision`, so the ten existing files need no change. The loader validates `details` with the same Pydantic models.
+
+Every query that feeds the editor or rewrite drills filters on `kind`. The editor receives `precision` groups as before, plus `idiom` groups only under the limits in "Idioms", so its behaviour and its eval results do not change when confusable sets are loaded.
+
+#### Choose the word
+
+The user sees a short situation, a sentence with one blank, and four to six candidate words from one group. They mark every candidate that fits and then pick the best one. The feedback explains each candidate in one line: why it fits, why it only partly fits, or why it is wrong. A new `choice_gen` role writes the item, including which candidates fit and a short reason for each, so grading is a comparison against stored answers and needs no grading LLM call.
+
+This is a recognition exercise. It is easier and faster than a free rewrite, so it suits words the user has just met. A correct best pick for a carded option reviews that card with `Good`, the same way a correct drill rewrite does.
+
+#### Compare
+
+A compare card shows two to four near-synonyms side by side: the core difference in one sentence, the connotation, the register, typical collocations, and one example sentence per word. For example, *persuade* is about getting someone to act and *convince* is about getting someone to believe. Practice uses three item types:
+
+- A pair of sentences where only one of the words fits each sentence.
+- A sentence that misuses one of the words, where the user names the misused word and the replacement.
+- Ordering a set by strength, such as annoyed, irritated, exasperated, livid.
+
+Confusable sets are the main source for this mode, and precision groups can be shown as compare cards too.
+
+#### Idioms
+
+Idioms are split into two tiers. The everyday tier holds idioms common in workplace writing ("cut corners", "a long shot"). The literary tier holds allusions that well-read writers use ("Pyrrhic victory", "Hobson's choice"), and each one gets its origin because the story helps the user remember the meaning. The everyday tier is built first, because it matches the target user's daily writing.
+
+A user learns an idiom in steps: recognise it in a short paragraph, choose its meaning, pick the situation where it fits, write it in their own sentence (graded), and finally use it unprompted in a conversation, which the existing usage detection records as a `word_used` event.
+
+A misused idiom reads worse than a plain word, especially from a non-native writer, so idioms have extra limits:
+
+- Every idiom stores `avoid_when`, and the card shows it.
+- Conversations get an `allow_idioms` flag, off by default and set by the writing-task presets (on for a team chat update, off for a client email). The editor receives idiom groups only when the flag is on and no idiom suggestion has been shown in that conversation yet, so it can suggest at most one idiom per conversation.
+- Misuse rate is reported separately for idioms, and the dashboard does not reward a higher count of idioms used.
+
+Idiom content is drafted by an `idiom_gen` role and reviewed in the admin page, like precision groups. Entries are not copied from published dictionaries, because of licensing. The first three steps are exercises written by `compare_gen` (see the next subsection). The fourth step is graded by the existing `usage_judge`, with the idiom's `meaning` passed as the distinction.
+
+#### Planned tables, events and roles
+
+Choose the word, Compare and the first three idiom steps are all short exercises with a stored answer, so they share two tables instead of each getting its own:
+
+| Table | Columns | Notes |
+|---|---|---|
+| `exercises` | `id`, `user_id`, `group_id`, `item_type`, `prompt` (JSON), `answer` (JSON), `llm_call_id`, `created_at` | `item_type` is one of `choice`, `compare_pair`, `compare_misuse`, `compare_order`, `idiom_recognise`, `idiom_meaning`, `idiom_situation`. `prompt` is what the user sees; `answer` is never sent to the browser before the attempt |
+| `exercise_attempts` | `id`, `exercise_id`, `user_id`, `response` (JSON), `correct`, `feedback` (JSON), `created_at` | `correct` is computed by a pure grading function per `item_type` |
+
+Other schema changes:
+
+| Table | Change | Section |
+|---|---|---|
+| `conversations` | `flow_mode` (boolean, default false), `allow_idioms` (boolean, default false), both set at creation | Conversation improvements, Idioms |
+| `drills` | `context` (text, nullable) | Drill improvements |
+| `drill_attempts` | `hints_used` (integer, default 0) | Drill improvements |
+| `precision_groups` | `kind`, nullable `head_lemma` | Word sets |
+| `precision_options` | `details` (JSON, nullable) | Word sets |
+
+New event types, each with a Pydantic payload in `events.py`:
+
+| Event type | Subject | Payload |
+|---|---|---|
+| `suggestion_retried` | suggestion | `option_id` (nullable), `word` |
+| `drill_disputed` | drill attempt | `note` (nullable) |
+| `exercise_answered` | exercise attempt | `item_type`, `correct`, `option_id` (nullable, the option the item tested) |
+
+`card_reviewed.source` gains the value `exercise`.
+
+New LLM roles: `choice_gen`, `compare_gen`, `confusable_gen` and `idiom_gen`. Each needs a model setting and a prompt version setting like the existing roles.
 
 ## Practice and spaced repetition
 

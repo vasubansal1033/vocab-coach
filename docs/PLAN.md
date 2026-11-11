@@ -332,6 +332,314 @@ Read CLAUDE.md and "Metrics" and "Events and LLM calls" in docs/DESIGN.md. Imple
 the metric tests before the queries. Propose your plan first.
 ```
 
+## Conversation improvements
+
+#### Goal
+
+Conversations feel like real writing tasks for a professional, and a suggestion can be used straight away instead of only days later.
+
+#### Decisions already made
+
+- Presets are a constant in the frontend. There is no presets table and no new API for them.
+- "Retry with this word" is done on the server, because suggestion offsets are computed by the app and the server holds the original message. If the suggestion has no `suggestion_accepted` event yet, retry also calls the existing `accept_suggestion()`, so the card is created exactly once and the acceptance rate stays meaningful.
+- The recap is computed on request and does not end the conversation. The user can keep writing after it.
+- Flow mode is chosen when the conversation is created and cannot be changed later. In flow mode the frontend does not request per-message feedback, so the editor does not run and no `suggestion_shown` event is recorded during the conversation. The recap then runs the editor for every user message that has no editor run yet. This keeps the "prompted" rule correct: a suggestion the user never saw cannot make a later use count as prompted.
+
+#### Files to change
+
+- `src/vocab/conversation/models.py` and a migration: `flow_mode` and `allow_idioms` booleans on `conversations` (both default false). `allow_idioms` is stored now and used in the Idioms section.
+- `src/vocab/events.py`: `SuggestionRetriedPayload` and its entry in `PAYLOAD_MODELS`.
+- `src/vocab/conversation/service.py`: `retry_suggestion()` and `conversation_recap()`.
+- `src/vocab/api/routes.py` and `src/vocab/api/schemas.py`:
+  - `POST /api/conversations/{conversation_id}/suggestions/{suggestion_id}/retry` with body `{"option_id": "<suggestion option id>"}`, returning `{"text": "<rewritten message>"}`.
+  - `GET /api/conversations/{conversation_id}/recap`.
+  - Accept `flow_mode` and `allow_idioms` on conversation creation and return them on read.
+- `frontend/src/pages/NewConversationPage.tsx`: preset buttons and a flow mode checkbox. `frontend/src/components/MessageFeedback.tsx`: the retry button. `frontend/src/pages/ConversationPage.tsx`: put the retry text in the message box, add a "Finish and show recap" button and the recap view, and skip feedback requests in flow mode. `frontend/src/api.ts`: the new calls.
+- `docs/DESIGN.md`: move the new columns and event from "Planned tables, events and roles" into "Data model".
+
+#### Tasks
+
+- [ ] Writing-task presets on the new conversation page. Each preset fills `title` and `feedback_expectations` and sets `allow_idioms`:
+
+  | Preset | Register in `feedback_expectations` | `allow_idioms` |
+  |---|---|---|
+  | Reply to a client email | Formal and polite, clear commitments | false |
+  | Team chat update | Neutral and brief | true |
+  | Standup summary | Neutral, past and next steps | true |
+  | Giving difficult feedback | Neutral, specific and kind | false |
+  | Declining a request | Polite and firm | false |
+  | Meeting summary | Neutral, decisions and owners | false |
+
+- [ ] Retry with this word: the server replaces `messages.content[span_start:span_end]` with the option's word, records `suggestion_retried`, accepts the suggestion if it was not accepted, and returns the text. The frontend puts the text in the message box; the user edits and sends it as a normal message.
+- [ ] Recap, built from recorded data with no new LLM role:
+  - Words to keep: options accepted in this conversation, then the highest-ranked shown and not dismissed suggestion options, up to three in total.
+  - Crutch words: lemmas from `message_lemma_counts` for this conversation's user messages where `is_crutch()` is true, with counts, most frequent first.
+  - One sentence to rewrite: the sentence of a user message that holds the highest-ranked suggestion that was neither accepted nor dismissed. Find the sentence boundaries with the existing spaCy analyzer, not with a regex.
+- [ ] Flow mode as described in "Decisions already made".
+
+#### Done when
+
+- Retrying with an option and then sending the message produces a `word_used` event with `prompted=true` (the word was just suggested) and no FSRS review, and exactly one `suggestion_accepted` event exists for that suggestion even if the user also clicked accept.
+- A unit test with a seeded conversation checks every part of the recap.
+- In a flow-mode conversation, no `editor_runs` rows and no `suggestion_shown` events exist before the recap is requested, and after it every user message has an editor run.
+- `uv run pytest` and `uv run ruff check .` pass, and `npm run build` in `frontend/` succeeds.
+
+#### Prompt for the coding agent
+
+```text
+Read CLAUDE.md, docs/HANDOVER.md, and "Purpose and scope", "Partner contract",
+"Practice and spaced repetition" and "Planned tables, events and roles" in docs/DESIGN.md.
+Implement the "Conversation improvements" section of docs/PLAN.md. Its "Decisions already
+made" are fixed; ask before changing any of them. Propose your plan first.
+```
+
+## Drill improvements
+
+#### Goal
+
+Drills have one clearly best answer, give help before the user gives up, and come in sets of five with a summary.
+
+#### Decisions already made
+
+- Context comes from a new prompt version, `prompts/drill_gen.v2.md`. `v1` is never edited. The default `llm_drill_gen_prompt_version` in `config.py` and `.env.example` becomes 2.
+- Hints need no LLM call. Level 1 is the intended option's `distinction`, level 2 is the first letter of `intended_word`, level 3 is the list of the group's approved option words. Using hints does not change the score; the grade only shows how many were used.
+- Disputes are only recorded as events. A web request never writes files. A CLI command exports disputes to a file for review.
+- Sets of five are counted in the frontend. The summary comes from the server, so it uses stored scores and not values held in the browser.
+
+#### Files to change
+
+- `src/vocab/drills/schemas.py`: `DrillGenOutputV2` with `context: str` in addition to the v1 fields. `src/vocab/drills/service.py` picks the output model by the active prompt version.
+- `src/vocab/drills/models.py` and a migration: `drills.context` (nullable text), `drill_attempts.hints_used` (integer, default 0).
+- `src/vocab/events.py`: `DrillDisputedPayload`.
+- `src/vocab/drills/service.py`: `hint_for()`, `summarize_attempts()` (a pure function over `DrillAttempt` rows), `dispute_attempt()`.
+- `src/vocab/api/routes.py` and `src/vocab/api/schemas.py`:
+  - `GET /api/drills/{drill_id}/hint?level=1|2|3`.
+  - `hints_used` in the attempt request body.
+  - `POST /api/drills/attempts/{attempt_id}/dispute` with body `{"note": str | null}`.
+  - `GET /api/drills/summary?attempt_ids=a,b,c`, filtered by `user_id`.
+- `src/vocab/cli.py`: `uv run vocab eval drill-disputes` writes `evals/drill_disputes/<YYYY-MM-DD>.yaml` with the drill, context, answer, grade and note for each dispute since the last export date found in that folder.
+- `frontend/src/pages/DrillsPage.tsx` and `frontend/src/api.ts`.
+
+#### Tasks
+
+- [ ] `prompts/drill_gen.v2.md`: one or two sentences of context, then the vague sentence, written so the intended option is the best fit by a clear margin.
+- [ ] Hints as decided above; the hints used are stored on the attempt and shown in the grade.
+- [ ] The grade view shows the user's rewrite next to `better_version` when there is one. Otherwise it shows the rewrite next to the intended word with its distinction. The grader's feedback sentence goes under both.
+- [ ] Dispute button, `drill_disputed` event, and the export CLI.
+- [ ] Sets of five, then a summary: mean score, the words practised, and the total hints used.
+
+#### Done when
+
+- Ten drills from `v2` each have one clearly best option in your own judgement (run with a real model and `RUN_LLM_TESTS=1`).
+- Unit tests cover `hint_for()` at all three levels, `summarize_attempts()` with known scores, and the dispute export output.
+- `v1` drills already in the database still render (their `context` is null).
+- `uv run pytest`, `uv run ruff check .` and `npm run build` pass.
+
+#### Prompt for the coding agent
+
+```text
+Read CLAUDE.md, docs/HANDOVER.md, and the "Rewrite drills" and "Drill improvements"
+sections of docs/PLAN.md. Implement "Drill improvements". Its "Decisions already made"
+are fixed; ask before changing any of them. Propose your plan first.
+```
+
+## Choose the word
+
+#### Goal
+
+A fast recognition exercise built on the existing precision groups. This section also creates the shared `exercises` tables that Compare and Idioms reuse.
+
+#### Decisions already made
+
+- Items are stored in the shared `exercises` and `exercise_attempts` tables (see "Planned tables, events and roles" in the design) with `item_type="choice"`. The code lives in a new module `src/vocab/exercises/`, and Compare and Idioms add their item types to it.
+- `choice_gen` is a new LLM role. Its output must use only option IDs from the group it was given. The service rejects the output (and records the failed call as usual) if any ID is unknown, if not exactly one candidate is marked best, or if the sentence does not contain exactly one `___`.
+- An answer is correct when the best pick matches. Which other candidates the user marked is shown as feedback and stored, but does not change `correct`.
+- Group selection reuses `drills/select.py` `select_group()`, restricted to `kind="precision"` once that column exists.
+- A correct best pick for a carded option reviews the card with `Good` and source `exercise`.
+
+#### Files to change
+
+- New `src/vocab/exercises/` with `models.py` (`Exercise`, `ExerciseAttempt`), `schemas.py` (`ChoiceGenOutput`, `ChoicePrompt`, `ChoiceAnswer`, `ChoiceResponse`), `service.py` (`create_choice()`, `answer_exercise()`), and `grading.py` (`grade_choice()`, a pure function).
+- A migration for both tables.
+- `src/vocab/llm/roles.py` (`Role`, `ROLES`, `model_for`, `prompt_version_for`), `src/vocab/config.py`, `.env.example`: the `choice_gen` role.
+- `src/vocab/prompts/choice_gen.v1.md`.
+- `src/vocab/events.py`: `ExerciseAnsweredPayload`, and `"exercise"` added to the `source` literal of `CardReviewedPayload`. `src/vocab/practice/srs.py`: `"exercise"` added to `Source`.
+- `src/vocab/account/service.py`: export and delete both new tables. `infra/postgres/rls.sql`: enable RLS on both tables.
+- `src/vocab/api/routes.py` and `src/vocab/api/schemas.py`: `POST /api/exercises/choice` (create), `GET /api/exercises/{exercise_id}` (returns `prompt` only), `POST /api/exercises/{exercise_id}/attempt`.
+- `frontend/src/pages/DrillsPage.tsx`: tabs "Rewrite" and "Choose the word". `frontend/src/api.ts`.
+
+#### Tasks
+
+- [ ] `choice_gen` role, prompt and output schema: a `situation` (one sentence), a `sentence` with one `___`, and four to six `candidates`, each with `option_id`, `fit` (`fits`, `partly`, `wrong`), `reason` (one line) and `best` (boolean).
+- [ ] Tables, migration, account export and delete, RLS.
+- [ ] `grade_choice()` and the attempt endpoint; record `exercise_answered`; review the card on a correct best pick.
+- [ ] "Choose the word" tab.
+
+#### Done when
+
+- Twenty generated items each have exactly one best answer, and you agree with the `fit` labels on at least eighteen.
+- `grade_choice()` has unit tests for a correct best pick, a wrong best pick, and a correct best pick with a wrongly marked extra candidate.
+- `GET /api/exercises/{id}` never includes `answer` (API test).
+- Account export includes exercises and account deletion removes them (extend the existing account tests).
+- `uv run pytest`, `uv run ruff check .` and `npm run build` pass.
+
+#### Prompt for the coding agent
+
+```text
+Read CLAUDE.md, docs/HANDOVER.md, and "Choose the word", "Planned tables, events and
+roles" and "Practice and spaced repetition" in docs/DESIGN.md. Implement the "Choose the
+word" section of docs/PLAN.md. Its "Decisions already made" are fixed; ask before changing
+any of them. Propose your plan first, including the exact JSON schema for choice_gen.
+```
+
+## Word sets
+
+#### Goal
+
+The lexicon can hold confusable sets and idioms as well as precision groups, without changing how cards, usage detection or metrics work.
+
+#### Decisions already made
+
+- Extend `precision_groups` and `precision_options`; do not rename them or add parallel tables. See "Word sets: one lexicon for all modes" in the design for the columns and the `details` fields.
+- Seed files stay in `data/precision_groups/`. A missing `kind` means `precision`. Group ID conventions: `confusable.<word>-<word>` (for example `confusable.imply-infer`) and `idiom.<head_lemma>` (for example `idiom.agree`). Option IDs keep using `lexicon/service.py` `option_id()`.
+- Multi-word matching already works: `nlp/usage.py` `find_learned_words()` uses a spaCy `PhraseMatcher` on `LEMMA`. Add tests; change the code only if a test fails.
+- Drafting uses two new roles, `confusable_gen` and `idiom_gen`, instead of a new `group_gen` version, so existing precision drafting does not change.
+
+#### Files to change
+
+- `src/vocab/lexicon/models.py` and a migration (`render_as_batch` is already on, which SQLite needs to make `head_lemma` nullable).
+- `src/vocab/lexicon/schemas.py`: `ConfusableDetails`, `IdiomDetails`, and validation of `details` by kind for seeds and drafts.
+- `src/vocab/lexicon/service.py`:
+  - `load_seeds()` reads `kind` and `details`.
+  - `export_approved()` writes them back.
+  - `approved_groups_for_lemma()` gains a `kinds` parameter that defaults to `("precision",)`.
+  - New `draft_set()` for the two new kinds.
+- `src/vocab/drills/select.py` `_approved_groups()`: filter `kind="precision"`. Check every other query on `PrecisionGroup` in `src/vocab/` (`grep -rn PrecisionGroup src/vocab`) and decide per query whether it needs the filter. `metrics/queries.py` `_groups_for_head()` does.
+- `src/vocab/lexicon/admin.py` and its template: show `kind` and `details`.
+- `src/vocab/llm/roles.py`, `src/vocab/config.py`, `.env.example`: `confusable_gen` and `idiom_gen`. Prompts `confusable_gen.v1.md` and `idiom_gen.v1.md`.
+- `src/vocab/cli.py`: `uv run vocab lexicon draft --kind confusable --words imply,infer` and `uv run vocab lexicon draft --kind idiom --lemma agree`. Without `--kind`, the command behaves as today.
+- `docs/DESIGN.md`: move the lexicon changes into "Data model" and "Precision groups".
+
+#### Tasks
+
+- [ ] Migration and models.
+- [ ] `details` Pydantic models and loader validation.
+- [ ] `kind` filters on editor, drill and metric queries.
+- [ ] Matching tests: "We were cutting corners on testing" matches `cut corners`, and "They saw eye to eye on scope" matches `see eye to eye`.
+- [ ] One seed file per new kind, used by tests: `confusable.imply-infer.yaml` and `idiom.agree.yaml` (two idioms such as "on the same page" and "see eye to eye").
+- [ ] Two new drafting roles and the CLI options.
+
+#### Done when
+
+- All existing tests pass with no changes to `practice/srs.py`, `practice/usage.py` or the metric functions, apart from the `kind` filter.
+- `uv run vocab lexicon load` loads both new seed files, and the admin page shows them.
+- The editor's input for a message containing "agree" contains no idiom groups (the editor only gets idioms after the Idioms section).
+- `uv run pytest` and `uv run ruff check .` pass.
+
+#### Prompt for the coding agent
+
+```text
+Read CLAUDE.md, docs/HANDOVER.md, and "Data model", "Precision groups" and "Word sets: one
+lexicon for all modes" in docs/DESIGN.md. Implement the "Word sets" section of
+docs/PLAN.md. Its "Decisions already made" are fixed; ask before changing any of them.
+Propose your migration and plan first.
+```
+
+## Compare
+
+#### Goal
+
+The user can see how near-synonyms differ and practise telling them apart.
+
+#### Decisions already made
+
+- Practice items use the shared `exercises` tables with item types `compare_pair`, `compare_misuse` and `compare_order`.
+- `compare_gen` is a new role that writes `compare_pair` and `compare_misuse` items. `compare_order` items need no LLM: the order comes from `details.strength`, and they are only offered for sets where every option has a `strength`.
+- Compare cards are built from stored lexicon fields only. No LLM call runs when a card is opened.
+
+#### Files to change
+
+- `data/precision_groups/`: at least ten reviewed confusable sets drafted with `confusable_gen`: imply and infer, persuade and convince, continual and continuous, sceptical and cynical, affect and impact, assure and ensure, comprise and compose, fewer and less, principal and principle, and annoyed, irritated, exasperated and livid (with `strength`).
+- `src/vocab/exercises/`: compare schemas, `create_compare()`, and grading functions per item type.
+- `src/vocab/llm/roles.py`, `src/vocab/config.py`, `.env.example`, `src/vocab/prompts/compare_gen.v1.md`.
+- `src/vocab/api/routes.py` and `src/vocab/api/schemas.py`:
+  - `GET /api/compare` (list sets).
+  - `GET /api/compare/{group_id}` (card).
+  - `POST /api/exercises/compare` with body `{"group_id": ..., "item_type": ...}`.
+- New `frontend/src/pages/ComparePage.tsx` (list and card) at `/compare` and `/compare/:groupId`, and a nav link in `frontend/src/App.tsx`.
+
+#### Tasks
+
+- [ ] Seed and review the ten confusable sets.
+- [ ] Compare card page.
+- [ ] `compare_gen` role and the three item types with grading functions.
+- [ ] `exercise_answered` events and card reviews, as in Choose the word.
+
+#### Done when
+
+- Every seeded set renders as a card with all fields filled.
+- Ten generated items of each LLM-written type have one correct answer in your own judgement on at least eight.
+- The grading functions for all three types have unit tests.
+- `uv run pytest`, `uv run ruff check .` and `npm run build` pass.
+
+#### Prompt for the coding agent
+
+```text
+Read CLAUDE.md, docs/HANDOVER.md, and "Compare", "Word sets: one lexicon for all modes"
+and "Planned tables, events and roles" in docs/DESIGN.md. Implement the "Compare" section
+of docs/PLAN.md. Its "Decisions already made" are fixed; ask before changing any of them.
+Propose your plan first.
+```
+
+## Idioms
+
+#### Goal
+
+The user learns everyday idioms for workplace writing in steps, from recognition to unprompted use, without being pushed to overuse them.
+
+#### Decisions already made
+
+- The everyday tier comes first. The literary tier is the last task in this section and can be split into its own session.
+- Steps 1 to 3 (recognise, meaning, situation) are `exercises` items of types `idiom_recognise`, `idiom_meaning` and `idiom_situation`, written by a new version `compare_gen.v2.md` that adds these types. `compare_gen.v1.md` is not edited.
+- Step 4 (write your own sentence) calls the existing `usage_judge` with the idiom's `details.meaning` as the distinction. No new grading role.
+- Step 5 is the existing unprompted-use detection, with no new code.
+- The editor gets idiom groups only when `conversations.allow_idioms` is true and no `suggestion_shown` event in that conversation points to an idiom group. This filter is done in Python before the editor call, not left to the prompt.
+- Idiom suggestions need a new editor prompt version (`editor.v4.md`), because v3 does not describe idiom groups. The default `llm_editor_prompt_version` changes to 4 only after the eval shows no regression.
+
+#### Files to change
+
+- `data/precision_groups/`: about thirty reviewed everyday idioms in `idiom.<head_lemma>` groups, drafted with `idiom_gen`. None of them has a pronoun slot.
+- `src/vocab/exercises/`: idiom item schemas and grading.
+- `src/vocab/prompts/compare_gen.v2.md` and `src/vocab/prompts/editor.v4.md`.
+- `src/vocab/editor/service.py` `analyze_message()`: add idiom groups under the rule above.
+- `evals/editor_gold.yaml`: at least five idiom cases (two where an idiom fits, three where it must not be suggested).
+- `src/vocab/metrics/queries.py`: `idiom_misuse_rate()`; `misuse_rate()` excludes idiom options. `src/vocab/api/routes.py` dashboard output and `frontend/src/pages/DashboardPage.tsx`.
+- New `frontend/src/pages/IdiomsPage.tsx` at `/idioms`, showing `avoid_when` on every idiom card, and a nav link.
+
+#### Tasks
+
+- [ ] Seed and review thirty everyday idioms.
+- [ ] Idiom page with steps 1 to 4.
+- [ ] Editor idiom filter, `editor.v4.md`, gold cases, and an eval run with v3 and v4 compared.
+- [ ] Separate idiom misuse rate on the dashboard.
+- [ ] Literary tier: about twenty idioms with `origin`, shown on the idiom card.
+
+#### Done when
+
+- An idiom accepted from a suggestion and later used unprompted and correctly produces a `word_used` event with `prompted=false` and a `Good` review.
+- `uv run vocab eval editor --prompt-version 4` scores no lower than `--prompt-version 3` on the existing (non-idiom) gold cases. Both result files are committed under `evals/results/`.
+- A unit test shows that the editor input contains no idiom groups when `allow_idioms` is false, or after one idiom suggestion was shown in that conversation.
+- `uv run pytest`, `uv run ruff check .` and `npm run build` pass.
+
+#### Prompt for the coding agent
+
+```text
+Read CLAUDE.md, docs/HANDOVER.md, and "Idioms", "Editor contract", "Metrics" and "Planned
+tables, events and roles" in docs/DESIGN.md. Implement the "Idioms" section of
+docs/PLAN.md, everyday tier first. Its "Decisions already made" are fixed; ask before
+changing any of them. Propose your plan first.
+```
+
 ## Product readiness (later)
 
 These are for when other people start using the app. Each is independent.
