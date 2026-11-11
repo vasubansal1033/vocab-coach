@@ -34,13 +34,28 @@ export default function LemmaPage() {
         <>
           <section className="panel">
             <h2>Weekly rate</h2>
-            <ul className="list">
-              {data.weekly.map((w) => (
-                <li key={w.label}>
-                  {w.label}: {w.rate == null ? '—' : w.rate.toFixed(1)}
-                </li>
-              ))}
-            </ul>
+            {!data.weekly.some((w) => w.rate != null) ? (
+              <p className="muted">No uses of this lemma in the window yet.</p>
+            ) : (
+              <table className="table">
+                <thead>
+                  <tr>
+                    <th>Week ending</th>
+                    <th>Rate / 1000</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {data.weekly
+                    .filter((w) => w.rate != null)
+                    .map((w) => (
+                      <tr key={w.label}>
+                        <td>{w.label}</td>
+                        <td>{w.rate!.toFixed(1)}</td>
+                      </tr>
+                    ))}
+                </tbody>
+              </table>
+            )}
           </section>
           <section className="panel">
             <h2>Learned options</h2>

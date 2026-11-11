@@ -19,6 +19,16 @@ function pct(value: number | null) {
   return value == null ? '—' : `${Math.round(value * 100)}%`
 }
 
+function shortWeekLabel(isoDate: string): string {
+  const parsed = new Date(`${isoDate}T00:00:00Z`)
+  if (Number.isNaN(parsed.getTime())) return isoDate
+  return parsed.toLocaleDateString(undefined, {
+    month: 'short',
+    day: 'numeric',
+    timeZone: 'UTC',
+  })
+}
+
 export default function DashboardPage() {
   const [data, setData] = useState<Dashboard | null>(null)
   const [promptVersion, setPromptVersion] = useState('')
@@ -39,13 +49,32 @@ export default function DashboardPage() {
   const chart = useMemo(() => {
     if (!data) return null
     return {
-      labels: data.weekly.map((w) => w.label),
+      labels: data.weekly.map((w) => shortWeekLabel(w.label)),
       datasets: [
         {
           label: 'Crutch rate / 1000 words',
-          data: data.weekly.map((w) => w.rate ?? 0),
+          data: data.weekly.map((w) => w.rate ?? null),
           borderColor: '#0f766e',
           backgroundColor: 'rgba(15, 118, 110, 0.2)',
+          tension: 0.25,
+          spanGaps: false,
+        },
+      ],
+    }
+  }, [data])
+
+  const drillChart = useMemo(() => {
+    if (!data) return null
+    const weeks = data.drill_weeks.filter((w) => w.score != null)
+    if (!weeks.length) return null
+    return {
+      labels: weeks.map((w) => shortWeekLabel(w.label)),
+      datasets: [
+        {
+          label: 'Mean drill score (1–5)',
+          data: weeks.map((w) => w.score),
+          borderColor: '#c2410c',
+          backgroundColor: 'rgba(194, 65, 12, 0.2)',
           tension: 0.25,
         },
       ],
@@ -103,20 +132,29 @@ export default function DashboardPage() {
               <InfoTip label="Weekly crutch rate" definition={METRIC_DEFINITIONS.crutchRate} />
             </h2>
             {chart && (
-              <Line
-                data={chart}
-                options={{
-                  scales: { y: { beginAtZero: true } },
-                  plugins: {
-                    tooltip: {
-                      callbacks: {
-                        label: (ctx) =>
-                          `${ctx.parsed.y?.toFixed(1) ?? '—'} per 1000 words`,
+              <div className="chart-frame">
+                <Line
+                  data={chart}
+                  options={{
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                      y: { beginAtZero: true },
+                      x: { ticks: { maxRotation: 0, autoSkip: true, maxTicksLimit: 6 } },
+                    },
+                    plugins: {
+                      tooltip: {
+                        callbacks: {
+                          label: (ctx) =>
+                            ctx.parsed.y == null
+                              ? 'No data'
+                              : `${ctx.parsed.y.toFixed(1)} per 1000 words`,
+                        },
                       },
                     },
-                  },
-                }}
-              />
+                  }}
+                />
+              </div>
             )}
           </section>
 
@@ -175,16 +213,30 @@ export default function DashboardPage() {
             <h2>
               <InfoTip label="Drill score" definition={METRIC_DEFINITIONS.drillScore} />
             </h2>
-            {!data.drill_weeks.length ? (
-              <p className="muted">No drills yet.</p>
+            {!drillChart ? (
+              <p className="muted">No graded drills in this window yet.</p>
             ) : (
-              <ul className="list">
-                {data.drill_weeks.map((w) => (
-                  <li key={w.label}>
-                    {w.label}: {w.score == null ? '—' : w.score.toFixed(1)}
-                  </li>
-                ))}
-              </ul>
+              <div className="chart-frame">
+                <Line
+                  data={drillChart}
+                  options={{
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                      y: { min: 1, max: 5, ticks: { stepSize: 1 } },
+                      x: { ticks: { maxRotation: 0, autoSkip: true, maxTicksLimit: 6 } },
+                    },
+                    plugins: {
+                      tooltip: {
+                        callbacks: {
+                          label: (ctx) =>
+                            ctx.parsed.y == null ? '—' : `Score ${ctx.parsed.y.toFixed(1)} / 5`,
+                        },
+                      },
+                    },
+                  }}
+                />
+              </div>
             )}
           </section>
         </>

@@ -6,10 +6,10 @@ export default function HomePage({ user }: { user: User | null }) {
 
   return (
     <section className="hero">
+      <p className="hero-eyebrow">Signed in as {name}</p>
       <h1>vocab-coach</h1>
-      <p>
-        Signed in as {name}. Practise precise wording in conversation, then lock it in with drills and
-        review.
+      <p className="hero-lead">
+        Practise precise wording in conversation, then lock it in with drills and review.
       </p>
       <div className="cta-row">
         <Link className="button-link" to="/conversations/new">
@@ -18,10 +18,10 @@ export default function HomePage({ user }: { user: User | null }) {
         <Link className="button-link secondary" to="/drills">
           Do a rewrite drill
         </Link>
-        <Link className="button-link ghost" to="/dashboard">
-          See progress
-        </Link>
       </div>
+      <p className="hero-aside">
+        <Link to="/dashboard">See your progress</Link>
+      </p>
     </section>
   )
 }

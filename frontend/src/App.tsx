@@ -12,12 +12,10 @@ import DrillsPage from './pages/DrillsPage'
 import AccountPage from './pages/AccountPage'
 
 const links = [
-  ['/', 'Home'],
   ['/conversations', 'Conversations'],
   ['/review', 'Review'],
   ['/drills', 'Drills'],
   ['/dashboard', 'Dashboard'],
-  ['/account', 'Account'],
 ] as const
 
 export default function App() {
@@ -33,41 +31,64 @@ export default function App() {
 
   return (
     <div className="app-shell">
-      <header className="topbar">
-        <NavLink to="/" className="brand">
-          vocab-coach
-        </NavLink>
-        <nav className="nav">
-          {links.map(([to, label]) => (
-            <NavLink key={to} to={to} end={to === '/'} className={({ isActive }) => (isActive ? 'active' : undefined)}>
-              {label}
+      <header className="site-header">
+        <div className="site-header-inner">
+          <NavLink to="/" className="brand" end>
+            vocab-coach
+          </NavLink>
+          <nav className="nav" aria-label="Main">
+            {links.map(([to, label]) => (
+              <NavLink
+                key={to}
+                to={to}
+                className={({ isActive }) => (isActive ? 'active' : undefined)}
+              >
+                {label}
+              </NavLink>
+            ))}
+          </nav>
+          <div className="header-actions">
+            <NavLink
+              to="/account"
+              className={({ isActive }) =>
+                isActive ? 'header-link active' : 'header-link'
+              }
+            >
+              {user?.display_name || user?.email || 'Account'}
             </NavLink>
-          ))}
-        </nav>
-        <a className="muted" href="/auth/logout">
-          Log out
-        </a>
+            <a className="header-link" href="/auth/logout">
+              Log out
+            </a>
+          </div>
+        </div>
       </header>
 
-      {error && <p className="error">{error}</p>}
+      <main className="site-main">
+        {error && <p className="error">{error}</p>}
+        <Routes>
+          <Route path="/" element={<HomePage user={user} />} />
+          <Route path="/conversations" element={<ConversationsPage />} />
+          <Route path="/conversations/new" element={<NewConversationPage />} />
+          <Route path="/conversations/:id" element={<ConversationPage />} />
+          <Route path="/dashboard" element={<DashboardPage />} />
+          <Route path="/dashboard/lemma/:lemma" element={<LemmaPage />} />
+          <Route path="/review" element={<ReviewPage />} />
+          <Route path="/drills" element={<DrillsPage />} />
+          <Route path="/account" element={<AccountPage />} />
+        </Routes>
+      </main>
 
-      <Routes>
-        <Route path="/" element={<HomePage user={user} />} />
-        <Route path="/conversations" element={<ConversationsPage />} />
-        <Route path="/conversations/new" element={<NewConversationPage />} />
-        <Route path="/conversations/:id" element={<ConversationPage />} />
-        <Route path="/dashboard" element={<DashboardPage />} />
-        <Route path="/dashboard/lemma/:lemma" element={<LemmaPage />} />
-        <Route path="/review" element={<ReviewPage />} />
-        <Route path="/drills" element={<DrillsPage />} />
-        <Route path="/account" element={<AccountPage />} />
-      </Routes>
-
-      <p className="footer-note">
-        Replace vague words with precise ones. <a href="/about/privacy">Privacy</a>
-        {" · "}
-        <a href="/about/attribution">Attribution</a>
-      </p>
+      <footer className="site-footer">
+        <div className="site-footer-inner">
+          <p className="footer-brand">vocab-coach</p>
+          <p className="footer-tag">Replace vague words with precise ones.</p>
+          <nav className="footer-nav" aria-label="Footer">
+            <a href="/about/privacy">Privacy</a>
+            <a href="/about/attribution">Attribution</a>
+            <NavLink to="/account">Account</NavLink>
+          </nav>
+        </div>
+      </footer>
     </div>
   )
 }
