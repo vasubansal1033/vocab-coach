@@ -16,10 +16,14 @@ from vocab.practice.srs import due_options
 
 
 def _approved_groups(session: Session) -> list[PrecisionGroup]:
+    """Rewrite drills only target precision groups, never confusable or idiom sets."""
     return list(
         session.scalars(
             select(PrecisionGroup)
-            .where(PrecisionGroup.status == "approved")
+            .where(
+                PrecisionGroup.status == "approved",
+                PrecisionGroup.kind == "precision",
+            )
             .options(selectinload(PrecisionGroup.options))
         )
     )
@@ -57,9 +61,10 @@ def select_group(session: Session, user_id: str) -> PrecisionGroup:
         raise RuntimeError("no approved precision groups; run vocab lexicon load")
 
     by_id = {g.id: g for g in groups}
-    by_lemma = defaultdict(list)
+    by_lemma: defaultdict[str, list[PrecisionGroup]] = defaultdict(list)
     for group in groups:
-        by_lemma[group.head_lemma.lower()].append(group)
+        if group.head_lemma:
+            by_lemma[group.head_lemma.lower()].append(group)
 
     # 1) Due cards → their option's group.
     for opt in due_options(session, user_id, limit=5):

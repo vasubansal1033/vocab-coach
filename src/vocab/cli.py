@@ -34,8 +34,28 @@ def build_parser() -> argparse.ArgumentParser:
     lexicon_sub.add_parser("load", help="Upsert YAML seeds as approved").set_defaults(
         func=_cmd_lexicon_load
     )
-    draft = lexicon_sub.add_parser("draft", help="Draft groups for a lemma via group_gen")
-    draft.add_argument("lemma")
+    draft = lexicon_sub.add_parser(
+        "draft",
+        help="Draft groups via group_gen, or --kind confusable/idiom",
+    )
+    draft.add_argument("lemma", nargs="?", default=None, help="Head lemma (precision drafts)")
+    draft.add_argument(
+        "--kind",
+        choices=("confusable", "idiom"),
+        default=None,
+        help="Draft a confusable or idiom set instead of a precision group",
+    )
+    draft.add_argument(
+        "--words",
+        default=None,
+        help="Comma-separated words for --kind confusable",
+    )
+    draft.add_argument(
+        "--lemma",
+        dest="lemma_flag",
+        default=None,
+        help="Head lemma for --kind idiom",
+    )
     draft.set_defaults(func=_cmd_lexicon_draft)
     lexicon_sub.add_parser("export", help="Write approved groups back to YAML").set_defaults(
         func=_cmd_lexicon_export
@@ -165,16 +185,31 @@ def _cmd_lexicon_load(_args: argparse.Namespace) -> int:
 
 
 def _cmd_lexicon_draft(args: argparse.Namespace) -> int:
-    from vocab.lexicon.service import draft_lemma
+    from vocab.lexicon.service import draft_lemma, draft_set
 
     with _cli_session() as session:
         try:
-            groups = asyncio.run(draft_lemma(session, args.lemma))
+            if args.kind:
+                words = (
+                    [w.strip() for w in args.words.split(",") if w.strip()]
+                    if args.words
+                    else None
+                )
+                lemma = args.lemma_flag or args.lemma
+                groups = asyncio.run(
+                    draft_set(session, args.kind, words=words, lemma=lemma)
+                )
+            else:
+                if not args.lemma:
+                    print("usage: vocab lexicon draft <lemma>", file=sys.stderr)
+                    return 2
+                groups = asyncio.run(draft_lemma(session, args.lemma))
         except Exception as exc:  # noqa: BLE001  surface provider/config errors
             print(f"draft failed: {exc}", file=sys.stderr)
             return 1
     for group in groups:
-        print(f"draft {group.id} ({group.head_lemma}) options={len(group.options)}")
+        head = group.head_lemma or "-"
+        print(f"draft {group.id} kind={group.kind} ({head}) options={len(group.options)}")
     return 0
 
 

@@ -43,6 +43,7 @@ def build_router(settings: Settings | None = None) -> APIRouter:
             {
                 "user": user,
                 "drafts": service.list_drafts(session),
+                "approved": service.list_approved(session),
                 "queue": service.list_review_queue(session),
             },
         )

@@ -3,10 +3,12 @@
 from __future__ import annotations
 
 from datetime import UTC, datetime
+from typing import Any
 from uuid import uuid4
 
 from sqlalchemy import DateTime, ForeignKey, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
+from sqlalchemy.types import JSON
 
 from vocab.db import Base
 
@@ -21,12 +23,14 @@ def utcnow() -> datetime:
 
 
 class PrecisionGroup(Base):
-    """One vague head lemma in one sense, with precise options."""
+    """One word set: precision group, confusable set, or idiom set."""
 
     __tablename__ = "precision_groups"
 
     id: Mapped[str] = mapped_column(String, primary_key=True)
-    head_lemma: Mapped[str] = mapped_column(String, index=True)
+    # Null for confusable sets; required for precision and idiom.
+    head_lemma: Mapped[str | None] = mapped_column(String, index=True, nullable=True)
+    kind: Mapped[str] = mapped_column(String, default="precision")  # precision|confusable|idiom
     pos: Mapped[str] = mapped_column(String)
     sense_gloss: Mapped[str] = mapped_column(Text)
     status: Mapped[str] = mapped_column(String)  # draft | approved
@@ -50,6 +54,8 @@ class PrecisionOption(Base):
     example: Mapped[str] = mapped_column(Text)
     register: Mapped[str] = mapped_column(String)  # neutral | formal | technical
     status: Mapped[str] = mapped_column(String)  # draft | approved
+    # Kind-specific fields; validated by ConfusableDetails / IdiomDetails.
+    details: Mapped[dict[str, Any] | None] = mapped_column(JSON, nullable=True, default=None)
 
     group: Mapped[PrecisionGroup] = relationship(back_populates="options")
 

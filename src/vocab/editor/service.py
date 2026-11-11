@@ -105,7 +105,13 @@ def _approved_groups_for_words(session: Session, words: list[str]) -> list[Preci
     seen: set[str] = set()
     for opt in options:
         group = opt.group
-        if group is None or group.status != "approved" or group.id in seen:
+        # Idioms arrive later via allow_idioms; confusable sets are for Compare.
+        if (
+            group is None
+            or group.status != "approved"
+            or group.kind != "precision"
+            or group.id in seen
+        ):
             continue
         seen.add(group.id)
         group.options = [o for o in group.options if o.status == "approved"]

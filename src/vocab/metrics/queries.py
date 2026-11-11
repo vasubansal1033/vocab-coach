@@ -209,6 +209,7 @@ def _groups_for_head(session: Session, head_lemma: str) -> list[GroupRef]:
     stmt = select(PrecisionGroup).where(
         PrecisionGroup.head_lemma == head_lemma,
         PrecisionGroup.status == "approved",
+        PrecisionGroup.kind == "precision",
     )
     return [GroupRef(id=g.id, sense_gloss=g.sense_gloss) for g in session.scalars(stmt)]
 
@@ -397,6 +398,7 @@ def lemma_detail(
             select(PrecisionGroup.id).where(
                 PrecisionGroup.head_lemma == lemma,
                 PrecisionGroup.status == "approved",
+                PrecisionGroup.kind == "precision",
             )
         )
     )

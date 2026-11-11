@@ -10,7 +10,7 @@
   {% endif %}
   {% for group in drafts %}
   <article>
-    <h3>{{ group.id }} <small>({{ group.head_lemma }} / {{ group.pos }})</small></h3>
+    <h3>{{ group.id }} <small>(kind={{ group.kind }} / {{ group.head_lemma or "-" }} / {{ group.pos }})</small></h3>
     <form method="post" action="/admin/lexicon/groups/{{ group.id }}/edit">
       <label>Sense gloss
         <textarea name="sense_gloss" rows="2" cols="60">{{ group.sense_gloss }}</textarea>
@@ -19,6 +19,14 @@
         <textarea name="options_blob" rows="6" cols="80">{% for opt in group.options %}{{ opt.word }} | {{ opt.distinction }} | {{ opt.example }} | {{ opt.register }}
 {% endfor %}</textarea>
       </label>
+      {% if group.options and group.options[0].details %}
+      <p><strong>Details</strong></p>
+      <ul>
+        {% for opt in group.options %}
+        <li><code>{{ opt.word }}</code>: {{ opt.details }}</li>
+        {% endfor %}
+      </ul>
+      {% endif %}
       <button type="submit">Save edit</button>
     </form>
     <form method="post" action="/admin/lexicon/groups/{{ group.id }}/approve" style="display:inline">
@@ -27,6 +35,27 @@
     <form method="post" action="/admin/lexicon/groups/{{ group.id }}/reject" style="display:inline">
       <button type="submit">Reject</button>
     </form>
+  </article>
+  {% endfor %}
+</section>
+
+<section>
+  <h2>Approved sets</h2>
+  {% if not approved %}
+  <p>No approved sets. Run <code>uv run vocab lexicon load</code>.</p>
+  {% endif %}
+  {% for group in approved %}
+  <article>
+    <h3>{{ group.id }} <small>(kind={{ group.kind }} / {{ group.head_lemma or "-" }} / {{ group.pos }})</small></h3>
+    <p>{{ group.sense_gloss }}</p>
+    <ul>
+      {% for opt in group.options %}
+      <li>
+        <strong>{{ opt.word }}</strong> — {{ opt.distinction }}
+        {% if opt.details %}<br><small>details: {{ opt.details }}</small>{% endif %}
+      </li>
+      {% endfor %}
+    </ul>
   </article>
   {% endfor %}
 </section>

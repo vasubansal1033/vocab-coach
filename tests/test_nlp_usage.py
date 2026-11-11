@@ -22,3 +22,17 @@ def test_find_learned_words_matches_work_around() -> None:
     assert len(hits) == 1
     assert "work" in hits[0].text.lower()
     assert "around" in hits[0].text.lower()
+
+
+def test_find_learned_words_matches_cutting_corners() -> None:
+    analysis = analyze("We were cutting corners on testing")
+    hits = find_learned_words(analysis, ["cut corners"])
+    assert len(hits) == 1
+    assert hits[0].lemma == "cut corners"
+
+
+def test_find_learned_words_matches_see_eye_to_eye() -> None:
+    analysis = analyze("They saw eye to eye on scope")
+    hits = find_learned_words(analysis, ["see eye to eye"])
+    assert len(hits) == 1
+    assert hits[0].lemma == "see eye to eye"
