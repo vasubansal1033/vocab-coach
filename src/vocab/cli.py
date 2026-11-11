@@ -54,6 +54,11 @@ def build_parser() -> argparse.ArgumentParser:
         help="Override LLM_EDITOR_PROMPT_VERSION",
     )
     editor_eval.set_defaults(func=_cmd_eval_editor)
+    disputes = eval_sub.add_parser(
+        "drill-disputes",
+        help="Export drill_disputed events since the last export file",
+    )
+    disputes.set_defaults(func=_cmd_eval_drill_disputes)
     eval_parser.set_defaults(func=_cmd_eval_help)
 
     srs = sub.add_parser("srs", help="Spaced-repetition utilities")
@@ -185,8 +190,20 @@ def _cmd_lexicon_export(_args: argparse.Namespace) -> int:
 
 def _cmd_eval_help(args: argparse.Namespace) -> int:
     if getattr(args, "eval_command", None) is None:
-        print("usage: vocab eval editor [--model M] [--prompt-version N]", file=sys.stderr)
+        print(
+            "usage: vocab eval {editor,drill-disputes} ...",
+            file=sys.stderr,
+        )
         return 2
+    return 0
+
+
+def _cmd_eval_drill_disputes(_args: argparse.Namespace) -> int:
+    from vocab.drills.service import export_drill_disputes
+
+    with _cli_session() as session:
+        path = export_drill_disputes(session)
+    print(path)
     return 0
 
 

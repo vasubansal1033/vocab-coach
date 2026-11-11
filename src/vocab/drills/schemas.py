@@ -11,6 +11,12 @@ class DrillGenOutput(BaseModel):
     intended_word: str
 
 
+class DrillGenOutputV2(DrillGenOutput):
+    """v2 adds a short situation so the intended option wins by a clear margin."""
+
+    context: str
+
+
 class DrillGradeOutput(BaseModel):
     precision: int = Field(ge=1, le=5)
     meaning: int = Field(ge=1, le=5)

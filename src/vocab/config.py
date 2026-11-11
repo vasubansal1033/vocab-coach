@@ -36,7 +36,7 @@ class Settings(BaseSettings):
     llm_partner_prompt_version: int = 1
     llm_editor_prompt_version: int = 4
     llm_usage_judge_prompt_version: int = 1
-    llm_drill_gen_prompt_version: int = 1
+    llm_drill_gen_prompt_version: int = 2
     llm_drill_grade_prompt_version: int = 1
     llm_group_gen_prompt_version: int = 1
 

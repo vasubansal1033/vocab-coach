@@ -30,6 +30,7 @@ class Drill(Base):
     user_id: Mapped[str] = mapped_column(ForeignKey("users.id"), index=True)
     group_id: Mapped[str] = mapped_column(ForeignKey("precision_groups.id"), index=True)
     vague_sentence: Mapped[str] = mapped_column(Text)
+    context: Mapped[str | None] = mapped_column(Text, nullable=True, default=None)
     intended_option_id: Mapped[str] = mapped_column(String, default="")
     intended_word: Mapped[str] = mapped_column(String, default="")
     llm_call_id: Mapped[str | None] = mapped_column(
@@ -53,6 +54,7 @@ class DrillAttempt(Base):
     answer: Mapped[str] = mapped_column(Text)
     grade: Mapped[dict[str, Any]] = mapped_column(JSON)
     score: Mapped[int] = mapped_column(Integer)
+    hints_used: Mapped[int] = mapped_column(Integer, default=0)
     llm_call_id: Mapped[str | None] = mapped_column(
         ForeignKey("llm_calls.id"), nullable=True, default=None
     )

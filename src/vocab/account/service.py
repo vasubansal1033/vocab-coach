@@ -84,6 +84,7 @@ def export_user(session: Session, user_id: str) -> dict[str, Any]:
                 "id": d.id,
                 "group_id": d.group_id,
                 "vague_sentence": d.vague_sentence,
+                "context": d.context,
                 "intended_word": d.intended_word,
             }
             for d in session.scalars(select(Drill).where(Drill.user_id == user_id))
